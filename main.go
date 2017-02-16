@@ -5,8 +5,8 @@ import (
 
 	// adapters
 	_ "github.com/ArthurHlt/gubot/adapter/shell"
-	_ "github.com/ArthurHlt/gubot/adapter/mattermost_user"
-	//_ "github.com/ArthurHlt/gubot/adapter/slack"
+	_ "github.com/ArthurHlt/gubot/adapter/slack"
+	//_ "github.com/ArthurHlt/gubot/adapter/mattermost_user"
 
 	// scripts
 	_ "github.com/ArthurHlt/gubot/scripts"
