@@ -1,0 +1,8 @@
+name: gubot
+memory: 64M
+buildpack: go_buildpack
+env:
+  GOPACKAGENAME: "github.com/ArthurHlt/gubot"
+#services:
+#- gubot-config
+#- gubot-mysql
