@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"strings"
 )
 
 func init() {
@@ -331,6 +332,7 @@ func (a MattermostUserAdapter) eventToEnvelop(event *model.WebSocketEvent) robot
 	return envelop
 }
 func (a MattermostUserAdapter) sendingEnvelop(event *model.WebSocketEvent, mattMe  *model.User) {
+
 	channelName := event.Data["channel_name"].(string)
 	var postData PostData
 	postDataRaw := event.Data["post"].(string)
@@ -362,7 +364,34 @@ func (a MattermostUserAdapter) sendingEnvelop(event *model.WebSocketEvent, mattM
 	envelop.ChannelName = channelName
 	envelop.Message = postData.Message
 	envelop.User = user
+	mentioned := a.isMentioned(event)
+	envelop.NotMentioned = !mentioned
+	if mentioned {
+		envelop.Message = strings.Replace(envelop.Message, "@" + a.me.Username, "", -1)
+		envelop.Message = strings.Replace(envelop.Message, a.me.Username, "", -1)
+		envelop.Message = strings.TrimSpace(envelop.Message)
+	}
 	a.gubot.Receive(envelop)
+}
+func (a MattermostUserAdapter) isMentioned(event *model.WebSocketEvent) bool {
+	if event.Data["channel_type"].(string) == "D" {
+		return true
+	}
+	if _, ok := event.Data["mentions"]; !ok {
+		return false
+	}
+	mentionString := event.Data["mentions"].(string)
+	var mentions []string
+	err := json.Unmarshal([]byte(mentionString), &mentions)
+	if err != nil {
+		return false
+	}
+	for _, mention := range mentions {
+		if mention == a.me.Id {
+			return true
+		}
+	}
+	return false
 }
 func (a MattermostUserAdapter) Name() string {
 	return "mattermost user"

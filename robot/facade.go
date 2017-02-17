@@ -70,6 +70,18 @@ func RegisterScript(script Script) error {
 func RegisterScripts(scripts []Script) error {
 	return robot.RegisterScripts(scripts)
 }
+func UnregisterScript(script Script) error {
+	return robot.UnregisterScript(script)
+}
+func UnregisterScripts(scripts []Script) error {
+	return robot.UnregisterScripts(scripts)
+}
+func UpdateScript(script Script) error {
+	return robot.UpdateScript(script)
+}
+func UpdateScripts(scripts []Script) error {
+	return robot.UpdateScripts(scripts)
+}
 func Router() *mux.Router {
 	return robot.Router()
 }

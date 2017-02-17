@@ -10,8 +10,6 @@ import (
 	"io/ioutil"
 )
 
-
-
 type HttpError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
@@ -51,7 +49,7 @@ func (g *Gubot) registerRemoteScripts(w http.ResponseWriter, req *http.Request) 
 		if g.isRemoteScriptExists(script) {
 			existingScript = append(existingScript, script)
 		}
-		err = g.checkScript(script)
+		err = g.checkRemoteScript(script)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			data, _ := json.Marshal(HttpError{
@@ -68,10 +66,18 @@ func (g *Gubot) registerRemoteScripts(w http.ResponseWriter, req *http.Request) 
 		w.Write(data)
 		return
 	}
-	for _, script := range tmpScripts {
-		g.Store().Create(&script)
+	for _, rmtScript := range tmpScripts {
+		g.Store().Create(&rmtScript)
+		g.RegisterScript(g.remoteScriptToScript(rmtScript))
 	}
 	w.WriteHeader(http.StatusCreated)
+}
+func (g *Gubot) remoteScriptToScript(rmtScript RemoteScript) Script {
+	script := rmtScript.ToScript()
+	script.Function = func(envelop Envelop, submatch [][]string) ([]string, error) {
+		return g.sendEnvelopToScript(envelop, submatch, rmtScript)
+	}
+	return script
 }
 func (g *Gubot) deleteRemoteScripts(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-type", "application/json")
@@ -89,7 +95,10 @@ func (g *Gubot) deleteRemoteScripts(w http.ResponseWriter, req *http.Request) {
 		if !g.isRemoteScriptExists(script) {
 			continue
 		}
-		g.Store().Unscoped().Where(&RemoteScript{Name: script.Name}).Delete(RemoteScript{})
+		var whereScript RemoteScript
+		whereScript.Name = script.Name
+		g.Store().Unscoped().Where(&whereScript).Delete(RemoteScript{})
+		g.UnregisterScript(g.remoteScriptToScript(script))
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -120,11 +129,14 @@ func (g *Gubot) updateRemoteScripts(w http.ResponseWriter, req *http.Request) {
 	}
 	for _, script := range tmpScripts {
 		var dbScript RemoteScript
-		g.Store().Where(&RemoteScript{Name: script.Name}).First(&dbScript)
-		dbScript.Regex = script.Regex
+		var whereScript RemoteScript
+		whereScript.Name = script.Name
+		g.Store().Where(&whereScript).First(&dbScript)
+		dbScript.Matcher = script.Matcher
 		dbScript.Type = script.Type
 		dbScript.Url = script.Url
 		g.Store().Save(&dbScript)
+		g.UpdateS(g.remoteScriptToScript(script))
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -179,27 +191,11 @@ func (g *Gubot) retrieveRemoteScript(r io.Reader) ([]RemoteScript, error) {
 	}
 	return []RemoteScript{tmpScript}, nil
 }
-func (g *Gubot) checkScript(script RemoteScript) error {
-	if script.Name != "" && script.Regex != "" && script.Type != "" && script.Url != "" {
+func (g *Gubot) checkRemoteScript(script RemoteScript) error {
+	if script.Name != "" && script.Matcher != "" && script.Type != "" && script.Url != "" {
 		return nil
 	}
-	return errors.New("Script must give a json with regex, name, type and url key.")
-}
-func (g *Gubot) sendToScript(envelop Envelop, typeScript TypeScript) ([]string, error) {
-	messages := make([]string, 0)
-	var remoteScripts []RemoteScript
-	g.Store().Find(&remoteScripts)
-	for _, script := range remoteScripts {
-		if TypeScript(script.Type) != typeScript || !match(script.Regex, envelop.Message) {
-			continue
-		}
-		tmpMessages, err := g.sendEnvelopToScript(envelop, allSubMatch(script.Regex, envelop.Message), script)
-		if err != nil {
-			return messages, err
-		}
-		messages = append(messages, tmpMessages...)
-	}
-	return messages, nil
+	return errors.New("Script must give a json with matcher, name, type and url key.")
 }
 func (g *Gubot) sendEnvelopToScript(envelop Envelop, subMatch [][]string, script RemoteScript) ([]string, error) {
 	dataToSend := struct {
@@ -231,7 +227,9 @@ func (g *Gubot) sendEnvelopToScript(envelop Envelop, subMatch [][]string, script
 }
 func (g *Gubot) isRemoteScriptExists(script RemoteScript) bool {
 	var fScript RemoteScript
-	g.Store().Where(&RemoteScript{Name: script.Name}).First(&fScript)
+	var whereScript RemoteScript
+	whereScript.Name = script.Name
+	g.Store().Where(&whereScript).First(&fScript)
 	return fScript.Name != ""
 }
 

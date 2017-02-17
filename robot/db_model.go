@@ -10,8 +10,18 @@ type User struct {
 }
 type RemoteScript struct {
 	gorm.Model
-	Name  string     `json:"name" gorm:"primary_key"`
-	Regex string     `json:"regex"`
-	Url   string     `json:"url"`
-	Type  string     `json:"type"`
+	Script
+	Url  string `json:"url"`
+	Type string `json:"type"`
+}
+
+func (r RemoteScript) ToScript() Script {
+	return Script{
+		Name: r.Name,
+		Description: r.Description,
+		Example: r.Example,
+		Matcher: r.Matcher,
+		TriggerOnMention: r.TriggerOnMention,
+		Type: TypeScript(r.Type),
+	}
 }

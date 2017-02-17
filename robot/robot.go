@@ -25,6 +25,7 @@ import (
 	"strings"
 	"github.com/ArthurHlt/gubot/robot/assets"
 	"github.com/olebedev/emitter"
+	"sync"
 )
 
 const (
@@ -63,7 +64,8 @@ type Gubot struct {
 	httpClient   *http.Client
 	gautocloud   *loader.Loader
 	store        *gorm.DB
-	scripts      Scripts
+	scripts      *Scripts
+	mutex        *sync.Mutex
 }
 
 func NewGubot() *Gubot {
@@ -73,6 +75,7 @@ func NewGubot() *Gubot {
 	for _, connector := range gautocloud.Connectors() {
 		ldCloud.RegisterConnector(connector)
 	}
+	scripts := Scripts(make([]Script, 0))
 	gubot := &Gubot{
 		GubotEmitter: emitter.New(uint(100)),
 		name: "gubot",
@@ -81,7 +84,8 @@ func NewGubot() *Gubot {
 		tokens: make([]string, 0),
 		gautocloud: ldCloud,
 		httpClient: &http.Client{},
-		scripts: make([]Script, 0),
+		scripts: &scripts,
+		mutex: new(sync.Mutex),
 	}
 	gubot.gautocloud.RegisterConnector(NewGubotGenericConnector(GubotConfig{}))
 	return gubot
@@ -172,11 +176,16 @@ func (g Gubot) GetConfig(config interface{}) error {
 	return g.gautocloud.Inject(config)
 }
 func (g *Gubot) RegisterScript(script Script) error {
-	if script.Function == nil || script.Matcher == "" || script.Type == "" ||
-		script.Name == "" {
-		return errors.New("Script " + script.Name + " can't have function, matcher, type or name empty.")
+	defer g.mutex.Unlock()
+	g.mutex.Lock()
+	err := g.checkScript(script)
+	if err != nil {
+		return err
 	}
-	g.scripts = append(g.scripts, script)
+	if script.Sanitizer == nil {
+		script.Sanitizer = SanitizeDefault
+	}
+	*g.scripts = append(*g.scripts, script)
 	return nil
 }
 func (g *Gubot) RegisterScripts(scripts []Script) error {
@@ -188,6 +197,74 @@ func (g *Gubot) RegisterScripts(scripts []Script) error {
 	}
 	return nil
 }
+func (g *Gubot) UnregisterScript(script Script) error {
+	defer g.mutex.Unlock()
+	g.mutex.Lock()
+	err := g.checkScript(script)
+	if err != nil {
+		return err
+	}
+	i := g.findScriptIndex(script)
+	if i == -1 {
+		return nil
+	}
+	scripts := *g.scripts
+	scripts = append(scripts[:i], scripts[i + 1:]...)
+	*g.scripts = scripts
+	return nil
+}
+func (g *Gubot) UnregisterScripts(scripts []Script) error {
+	for _, script := range scripts {
+		err := g.UnregisterScript(script)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (g *Gubot) UpdateScript(script Script) error {
+	defer g.mutex.Unlock()
+	g.mutex.Lock()
+	err := g.checkScript(script)
+	if err != nil {
+		return err
+	}
+	i := g.findScriptIndex(script)
+	if i == -1 {
+		return nil
+	}
+	scripts := *g.scripts
+	scripts[i] = script
+	*g.scripts = scripts
+	return nil
+}
+func (g *Gubot) UpdateScripts(scripts []Script) error {
+	for _, script := range scripts {
+		err := g.UpdateScript(script)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (g Gubot) checkScript(script Script) error {
+	if script.Function == nil || script.Matcher == "" || script.Type == "" ||
+		script.Name == "" {
+		return errors.New("Script " + script.Name + " can't have function, matcher, type or name empty.")
+	}
+	return nil
+}
+func (g *Gubot) findScriptIndex(findScript Script) int {
+	for index, script := range *g.scripts {
+		if script.Name == findScript.Name &&
+			script.Matcher == findScript.Matcher &&
+			script.Type == findScript.Type {
+			return index
+		}
+	}
+	return -1
+}
+
 func (g Gubot) Store() *gorm.DB {
 	return g.store
 }
@@ -272,6 +349,11 @@ func (g *Gubot) LoadStore() error {
 	}
 	store.AutoMigrate(&User{})
 	store.AutoMigrate(&RemoteScript{})
+	var rmtScripts []RemoteScript
+	store.Find(&rmtScripts)
+	for _, rmtScript := range rmtScripts {
+		g.RegisterScript(g.remoteScriptToScript(rmtScript))
+	}
 	g.store = store
 	return nil
 }
@@ -312,26 +394,7 @@ func (g Gubot) InitDefaultRoute() {
 	}
 	g.router.PathPrefix("/static_compiled/").Handler(http.StripPrefix("/static_compiled/", http.FileServer(assets.StaticAssetFs())))
 }
-func (g Gubot) InitDefaultScripts() {
-	g.RegisterScripts([]Script{
-		{
-			Name: REMOTE_SCRIPTS_NAME,
-			Type: Tsend,
-			Matcher: ".*",
-			Function: func(envelop Envelop, subMatch [][]string) ([]string, error) {
-				return g.sendToScript(envelop, Tsend)
-			},
-		},
-		{
-			Name: REMOTE_SCRIPTS_NAME,
-			Type: Trespond,
-			Matcher: ".*",
-			Function: func(envelop Envelop, subMatch [][]string) ([]string, error) {
-				return g.sendToScript(envelop, Trespond)
-			},
-		},
-	})
-}
+
 func (g *Gubot) ApiAuthMatcher() func(http.Handler) http.Handler {
 	fn := func(h http.Handler) http.Handler {
 		return TokenAuthHandler{h, g}
@@ -358,11 +421,18 @@ func (g Gubot) IsSecured(w http.ResponseWriter, req *http.Request) bool {
 }
 func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 	toSends := make([]string, 0)
-	for _, script := range g.scripts.ListFromType(typeScript) {
-		if !match(script.Matcher, envelop.Message) {
+	g.mutex.Lock()
+	scripts := *g.scripts
+	g.mutex.Unlock()
+	for _, script := range scripts.ListFromType(typeScript) {
+		if script.TriggerOnMention && envelop.NotMentioned {
 			continue
 		}
-		messages, err := script.Function(envelop, allSubMatch(script.Matcher, envelop.Message))
+		message := script.Sanitizer(envelop.Message)
+		if !match(script.Matcher, message) {
+			continue
+		}
+		messages, err := script.Function(envelop, allSubMatch(script.Matcher, message))
 		if err != nil {
 			log.Println(fmt.Sprintf("Error on script '%s': %s", script.Name, err.Error()))
 			continue
@@ -397,7 +467,7 @@ func (g Gubot) IsValidToken(tokenToCheck string) bool {
 	return false
 }
 func (g Gubot) GetScripts() []Script {
-	return []Script(g.scripts)
+	return []Script(*g.scripts)
 }
 func (g *Gubot) InitializeHelp() {
 	g.RegisterScript(Script{
@@ -406,7 +476,10 @@ func (g *Gubot) InitializeHelp() {
 		Matcher: "(?i)^help$",
 		Function: func(envelop Envelop, subMatch [][]string) ([]string, error) {
 			list := "Available scripts: \n"
-			for _, script := range g.scripts {
+			g.mutex.Lock()
+			scripts := *g.scripts
+			g.mutex.Unlock()
+			for _, script := range scripts {
 				if script.Name == REMOTE_SCRIPTS_NAME {
 					continue
 				}
@@ -414,6 +487,9 @@ func (g *Gubot) InitializeHelp() {
 					"- %s",
 					strings.Title(script.Name),
 				)
+				if script.TriggerOnMention {
+					list += "*"
+				}
 				if script.Example == "" {
 					list += " -- regex: `" + script.Matcher + "`"
 				} else {
@@ -424,8 +500,10 @@ func (g *Gubot) InitializeHelp() {
 				}
 				list += "\n"
 			}
+			list += "`*`: Script will be only trigered when talking explicitly to the bot."
 			return []string{list}, nil
 		},
+		TriggerOnMention: true,
 		Type: Tsend,
 	})
 }
@@ -459,7 +537,6 @@ func (g *Gubot) Start(port int) error {
 	})
 	log.Println("Listening on port: " + strconv.Itoa(port))
 	g.runAdapters()
-	g.InitDefaultScripts()
 	g.InitDefaultRoute()
 	g.InitializeHelp()
 	g.Emit(GubotEvent{

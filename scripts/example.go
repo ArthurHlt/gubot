@@ -67,9 +67,10 @@ func init() {
 		{
 			Name: "menu order",
 			Description: "order something to eat",
-			Example: "menu order with pizza, coca and pies",
-			Matcher: "(?i)menu order (with)? ([a-z]*)(,)? ([a-z]*)?( and)? ([a-z]*)?",
+			Example: "menu order with pizza, coca & pies",
+			Matcher: "(?i)menu order (with)? ([a-z]*) ([a-z]*)? ([a-z]*)?",
 			Function: e.menu,
+			Sanitizer: robot.SanitizeDefaultWithSpecialChar,
 			Type: robot.Tsend,
 		},
 		{
@@ -77,6 +78,7 @@ func init() {
 			Description: "list all orders",
 			Example: "menu list",
 			Matcher: "(?i)menu list",
+			TriggerOnMention: true,
 			Function: e.menuShow,
 			Type: robot.Tsend,
 		},
@@ -119,8 +121,8 @@ func (e ExampleScript) lulz(envelop robot.Envelop, subMatch [][]string) ([]strin
 }
 func (e ExampleScript) menu(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
 	plate := subMatch[0][2]
-	drink := subMatch[0][4]
-	dessert := subMatch[0][6]
+	drink := subMatch[0][3]
+	dessert := subMatch[0][4]
 	var user robot.User
 	robot.Store().Where(&robot.User{
 		UserId: envelop.User.Id,
@@ -137,7 +139,7 @@ func (e ExampleScript) menuShow(envelop robot.Envelop, subMatch [][]string) ([]s
 	var menus []ExampleMenu
 	robot.Store().Find(&menus)
 
-	res := fmt.Sprintf("There is %d menu(s) in queue: \n", len(menus))
+	res := fmt.Sprintf("There is %d order(s) in queue: \n", len(menus))
 	var userDb robot.User
 	for _, menu := range menus {
 		robot.Store().Model(&menu).Related(&userDb)

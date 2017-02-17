@@ -6,12 +6,14 @@ const (
 )
 
 type Script struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Example     string `json:"example"`
-	Matcher     string `json:"matcher"`
-	Function    func(Envelop, [][]string) ([]string, error) `json:"-"`
-	Type        TypeScript `json:"type"`
+	Name             string `json:"name" gorm:"primary_key"`
+	Description      string `json:"description"`
+	Example          string `json:"example"`
+	Matcher          string `json:"matcher"`
+	TriggerOnMention bool   `json:"trigger_on_mention"`
+	Function         func(Envelop, [][]string) ([]string, error) `json:"-" gorm:"-"`
+	Sanitizer        func(text string) string `json:"-" gorm:"-"`
+	Type             TypeScript `json:"type" gorm:"-"`
 }
 type TypeScript string
 
