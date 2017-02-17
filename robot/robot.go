@@ -405,7 +405,7 @@ func (g *Gubot) InitializeHelp() {
 		Description: "Provide the list of available scripts",
 		Matcher: "(?i)^help$",
 		Function: func(envelop Envelop, subMatch [][]string) ([]string, error) {
-			list := "Available script with matching regex: \n"
+			list := "Available scripts: \n"
 			for _, script := range g.scripts {
 				if script.Name == REMOTE_SCRIPTS_NAME {
 					continue
@@ -417,7 +417,7 @@ func (g *Gubot) InitializeHelp() {
 				if script.Example == "" {
 					list += " -- regex: `" + script.Matcher + "`"
 				} else {
-					list += " -- e.g.: " + script.Example
+					list += " -- e.g.: `" + script.Example + "`"
 				}
 				if script.Description != "" {
 					list += " -- " + strings.Title(script.Description)

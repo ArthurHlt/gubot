@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"encoding/json"
 	"github.com/gorilla/mux"
+	"github.com/jinzhu/gorm"
+	"github.com/olebedev/emitter"
 )
 
 func init() {
@@ -16,7 +18,10 @@ func init() {
 		annoy: make(map[string]bool),
 		config: conf,
 	}
-
+	// we create the table in database only when the store has been initialized
+	robot.On(robot.EVENT_ROBOT_INITIALIZED_STORE, func(event *emitter.Event) {
+		robot.Store().AutoMigrate(&ExampleMenu{})
+	})
 	e.listen()
 	robot.Router().HandleFunc("/gubot/chatsecrets/{channel}", e.handlerChatsecret)
 	robot.RegisterScripts([]robot.Script{
@@ -59,9 +64,33 @@ func init() {
 			Function: e.unannoyMe,
 			Type: robot.Tsend,
 		},
+		{
+			Name: "menu order",
+			Description: "order something to eat",
+			Example: "menu order with pizza, coca and pies",
+			Matcher: "(?i)menu order (with)? ([a-z]*)(,)? ([a-z]*)?( and)? ([a-z]*)?",
+			Function: e.menu,
+			Type: robot.Tsend,
+		},
+		{
+			Name: "menu list",
+			Description: "list all orders",
+			Example: "menu list",
+			Matcher: "(?i)menu list",
+			Function: e.menuShow,
+			Type: robot.Tsend,
+		},
 	})
 }
 
+type ExampleMenu struct {
+	gorm.Model
+	User    robot.User
+	UserID  int
+	Plate   string
+	Drink   string
+	Dessert string
+}
 type ExampleScriptConfig struct {
 	GubotAnswerToTheUltimateQuestionOfLifeTheUniverseAndEverything string
 }
@@ -88,7 +117,40 @@ func (e ExampleScript) doors(envelop robot.Envelop, subMatch [][]string) ([]stri
 func (e ExampleScript) lulz(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
 	return []string{"lol", "rofl", "lmao"}, nil
 }
+func (e ExampleScript) menu(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
+	plate := subMatch[0][2]
+	drink := subMatch[0][4]
+	dessert := subMatch[0][6]
+	var user robot.User
+	robot.Store().Where(&robot.User{
+		UserId: envelop.User.Id,
+	}).First(&user)
+	robot.Store().Create(&ExampleMenu{
+		User: user,
+		Plate: plate,
+		Drink: drink,
+		Dessert: dessert,
+	})
+	return e.menuShow(envelop, subMatch)
+}
+func (e ExampleScript) menuShow(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
+	var menus []ExampleMenu
+	robot.Store().Find(&menus)
 
+	res := fmt.Sprintf("There is %d menu(s) in queue: \n", len(menus))
+	var userDb robot.User
+	for _, menu := range menus {
+		robot.Store().Model(&menu).Related(&userDb)
+		res += fmt.Sprintf("- %s's order: \n  - Plate: %s\n", userDb.Name, menu.Plate)
+		if menu.Drink != "" {
+			res += "  - Drink: " + menu.Drink + "\n"
+		}
+		if menu.Dessert != "" {
+			res += "  - Dessert: " + menu.Dessert + "\n"
+		}
+	}
+	return []string{res}, nil
+}
 func (e ExampleScript) topic(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
 	return []string{envelop.Message + "? that's a paddlin"}, nil
 }
