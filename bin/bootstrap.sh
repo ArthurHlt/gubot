@@ -14,3 +14,4 @@ if hash curl 2>/dev/null; then
 else
     wget -o "main.go" "https://raw.githubusercontent.com/ArthurHlt/gubot/master/main.go"
 fi
+mkdir static

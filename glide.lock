@@ -1,8 +1,10 @@
-hash: a9fbb57d3670e75f16f05c23884db869ad20a460c79a806455c71f83e5e0dbad
-updated: 2017-02-16T23:56:44.233114772+01:00
+hash: 2d6508f7bab6c6bdf3b1a358022cefd1fd324609c3d2323c718f7bdd7b3faea5
+updated: 2017-02-18T16:56:54.961878492+01:00
 imports:
 - name: github.com/alecthomas/log4go
   version: e5dc62318d9bd58682f1dceb53a4b24e8253682f
+- name: github.com/ArthurHlt/gominlog
+  version: 068c01ce147ad68fca25ef3fa29ae5395ae273ab
 - name: github.com/azer/snakecase
   version: c818dddafb5c91bd13275f49b08e38a489cbef5f
 - name: github.com/cloudfoundry-community/gautocloud

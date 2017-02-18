@@ -6,13 +6,13 @@ import (
 	"github.com/mattermost/platform/model"
 	"net/url"
 	"encoding/json"
-	"log"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
 	"strings"
+	"github.com/ArthurHlt/gominlog"
 )
 
 func init() {
@@ -51,6 +51,7 @@ type MattermostUserAdapter struct {
 	client      *model.Client
 	gubot       *robot.Gubot
 	mutex       *sync.Mutex
+	logger      *gominlog.MinLog
 	onlineUsers map[string]interface{}
 	me          *model.User
 }
@@ -105,7 +106,7 @@ func (a MattermostUserAdapter) getTeamIdByChannelId(channelId string) (string, e
 	for teamId, _ := range teams {
 		_, appErr := a.GetChannelById(teamId, channelId)
 		if appErr != nil {
-			log.Println(appErr.Error())
+			a.logger.Error(appErr.Error())
 			continue
 		}
 		return teamId, nil
@@ -159,6 +160,7 @@ func (a MattermostUserAdapter) Reply(envelop robot.Envelop, message string) erro
 func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) error {
 	conf := config.(*MattermostUserConfig)
 	a.gubot = gubot
+	a.logger = gubot.Logger()
 	if conf.MattermostUsername == "" {
 		return errors.New("mattermost_username config param is required")
 	}
@@ -208,7 +210,7 @@ func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) erro
 			if event == nil {
 				appErr := clientWs.Connect()
 				if appErr != nil {
-					log.Println("Error when reconnecting to web socket: " + appErr.Error())
+					a.logger.Error("Error when reconnecting to web socket: " + appErr.Error())
 				}
 				clientWs.Listen()
 				continue
@@ -287,7 +289,7 @@ func (a *MattermostUserAdapter) emitStatusChange() {
 func (a MattermostUserAdapter) userIdToDirectEnvelop(userId string) robot.Envelop {
 	resp, appErr := a.client.GetUser(userId, "")
 	if appErr != nil {
-		log.Println("Cannot transform event in envelop")
+		a.logger.Error("Cannot transform event in envelop")
 		return robot.Envelop{}
 	}
 	user := resp.Data.(*model.User)
@@ -311,7 +313,7 @@ func (a MattermostUserAdapter) eventToEnvelop(event *model.WebSocketEvent) robot
 	channelId := event.Broadcast.ChannelId
 	resp, appErr := a.client.GetUser(userId, "")
 	if appErr != nil {
-		log.Println("Cannot transform event in envelop")
+		a.logger.Error("Cannot transform event in envelop")
 		return robot.Envelop{}
 	}
 	user := resp.Data.(*model.User)
@@ -338,7 +340,7 @@ func (a MattermostUserAdapter) sendingEnvelop(event *model.WebSocketEvent, mattM
 	postDataRaw := event.Data["post"].(string)
 	err := json.Unmarshal([]byte(postDataRaw), &postData)
 	if err != nil {
-		log.Println("Error when unmarshalling data: " + err.Error())
+		a.logger.Error("Error when unmarshalling data: " + err.Error())
 		return
 	}
 	if mattMe.Id == postData.UserID {

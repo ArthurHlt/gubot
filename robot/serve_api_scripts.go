@@ -69,7 +69,9 @@ func (g *Gubot) registerRemoteScripts(w http.ResponseWriter, req *http.Request) 
 	for _, rmtScript := range tmpScripts {
 		g.Store().Create(&rmtScript)
 		g.RegisterScript(g.remoteScriptToScript(rmtScript))
+		g.logger.Info("Client '%s' on api registered: %s.", getRemoteIp(req), rmtScript.String())
 	}
+
 	w.WriteHeader(http.StatusCreated)
 }
 func (g *Gubot) remoteScriptToScript(rmtScript RemoteScript) Script {
@@ -99,6 +101,7 @@ func (g *Gubot) deleteRemoteScripts(w http.ResponseWriter, req *http.Request) {
 		whereScript.Name = script.Name
 		g.Store().Unscoped().Where(&whereScript).Delete(RemoteScript{})
 		g.UnregisterScript(g.remoteScriptToScript(script))
+		g.logger.Info("Client '%s' on api delete script: %s.", getRemoteIp(req), script.String())
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -132,11 +135,16 @@ func (g *Gubot) updateRemoteScripts(w http.ResponseWriter, req *http.Request) {
 		var whereScript RemoteScript
 		whereScript.Name = script.Name
 		g.Store().Where(&whereScript).First(&dbScript)
+		g.UnregisterScript(dbScript)
+		g.logger.Info("Client '%s' on api update script: %s.", getRemoteIp(req), dbScript.String())
 		dbScript.Matcher = script.Matcher
 		dbScript.Type = script.Type
 		dbScript.Url = script.Url
+		dbScript.TriggerOnMention = script.TriggerOnMention
+		dbScript.Description = script.Description
+		dbScript.Example = script.Example
 		g.Store().Save(&dbScript)
-		g.UpdateS(g.remoteScriptToScript(script))
+		g.RegisterScript(g.remoteScriptToScript(script))
 	}
 	w.WriteHeader(http.StatusOK)
 }

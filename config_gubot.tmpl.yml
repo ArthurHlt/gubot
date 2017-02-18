@@ -3,6 +3,7 @@ skip_insecure: false
 tokens:
 - atokentosecuredata
 host: http://localhost:8080
+log_level: ~ # info when it's nil, other values can be: off, all, warning, severe, error, debug and info
 config:
   slack_income_url: "http://localhost/hooks/975rc3rxyjbs5pz8e4rjn7mm5y"
   gubot_answer_to_the_ultimate_question_of_life_the_universe_and_everything: "42"

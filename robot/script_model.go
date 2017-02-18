@@ -1,5 +1,7 @@
 package robot
 
+import "fmt"
+
 const (
 	Tsend TypeScript = "send"
 	Trespond TypeScript = "respond"
@@ -28,4 +30,8 @@ func (s Scripts) ListFromType(typeScript TypeScript) Scripts {
 		scripts = append(scripts, script)
 	}
 	return Scripts(scripts)
+}
+
+func (s Script) String() string {
+	return fmt.Sprintf("Script '%s' with matcher '%s' and type '%s'", s.Name, s.Matcher, s.Type)
 }

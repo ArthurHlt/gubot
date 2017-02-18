@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"github.com/jinzhu/gorm"
 	"github.com/olebedev/emitter"
+	"github.com/ArthurHlt/gominlog"
 )
 
 var robot *Gubot = NewGubot()
@@ -100,8 +101,17 @@ func GetScripts() []Script {
 func IsValidToken(tokenToCheck string) bool {
 	return robot.IsValidToken(tokenToCheck)
 }
-func Start(port int) error {
-	return robot.Start(port)
+func Logger() *gominlog.MinLog {
+	return robot.Logger()
+}
+func SetLogger(minLog *gominlog.MinLog) {
+	robot.SetLogger(minLog)
+}
+func SetLogLevel(level string) {
+	robot.SetLogLevel(level)
+}
+func Start(addr string) error {
+	return robot.Start(addr)
 }
 func ToGubotEvent(event emitter.Event) GubotEvent {
 	return event.Args[0].(GubotEvent)

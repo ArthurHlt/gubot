@@ -5,7 +5,9 @@ import (
 	"regexp"
 )
 
-
+func NoSanitize(text string) string {
+	return text
+}
 func SanitizeDefault(text string) string {
 	return SanitizeSpaces(SanitizeNewLine(SanitizeTab(text)))
 }

@@ -16,7 +16,6 @@ import (
 	_ "github.com/cloudfoundry-community/gautocloud/connectors/databases/gorm"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	"strconv"
 	"errors"
 	"path/filepath"
 	"github.com/satori/go.uuid"
@@ -26,6 +25,8 @@ import (
 	"github.com/ArthurHlt/gubot/robot/assets"
 	"github.com/olebedev/emitter"
 	"sync"
+	"github.com/ArthurHlt/gominlog"
+	"github.com/cloudfoundry-community/gautocloud/logger"
 )
 
 const (
@@ -48,9 +49,9 @@ const (
 
 type EventAction string
 type GubotEvent struct {
-	Action        EventAction
-	Envelop       Envelop
-	ChosenMessage string
+	Action  EventAction
+	Envelop Envelop
+	Message string
 }
 
 type Gubot struct {
@@ -66,9 +67,14 @@ type Gubot struct {
 	store        *gorm.DB
 	scripts      *Scripts
 	mutex        *sync.Mutex
+	logger       *gominlog.MinLog
 }
 
 func NewGubot() *Gubot {
+	minlog := gominlog.NewClassicMinLog()
+	minlog.SetPackageName("gubot")
+	minlog.WithColor(false)
+	minlog.SetLevel(gominlog.Linfo)
 	cloudenvs := gautocloud.CloudEnvs()
 	cloudenvs = append(cloudenvs, NewConfFileCloudEnv())
 	ldCloud := loader.NewLoader(cloudenvs)
@@ -86,6 +92,7 @@ func NewGubot() *Gubot {
 		httpClient: &http.Client{},
 		scripts: &scripts,
 		mutex: new(sync.Mutex),
+		logger: minlog,
 	}
 	gubot.gautocloud.RegisterConnector(NewGubotGenericConnector(GubotConfig{}))
 	return gubot
@@ -135,6 +142,38 @@ func (g Gubot) Once(eventAction EventAction, middlewares ...func(*emitter.Event)
 func (g Gubot) Emitter() *emitter.Emitter {
 	return g.GubotEmitter
 }
+func (g Gubot) Logger() *gominlog.MinLog {
+	return g.logger
+}
+func (g *Gubot) SetLogger(minLog *gominlog.MinLog) {
+	g.logger = minLog
+}
+func (g *Gubot) SetLogLevel(level string) {
+	level = strings.ToLower(level)
+	switch level {
+	case "off":
+		g.logger.SetLevel(gominlog.Loff)
+		break
+	case "all":
+		g.logger.SetLevel(gominlog.Lall)
+		break
+	case "debug":
+		g.logger.SetLevel(gominlog.Ldebug)
+		break
+	case "error":
+		g.logger.SetLevel(gominlog.Lerror)
+		break
+	case "severe":
+		g.logger.SetLevel(gominlog.Lsevere)
+		break
+	case "warning":
+		g.logger.SetLevel(gominlog.Lwarning)
+		break
+	default:
+		g.logger.SetLevel(gominlog.Linfo)
+		break
+	}
+}
 func (g Gubot) Name() string {
 	return g.name
 }
@@ -182,10 +221,14 @@ func (g *Gubot) RegisterScript(script Script) error {
 	if err != nil {
 		return err
 	}
+	if g.findScriptIndex(script) != -1 {
+		return errors.New("Script '%s' already registered")
+	}
 	if script.Sanitizer == nil {
 		script.Sanitizer = SanitizeDefault
 	}
 	*g.scripts = append(*g.scripts, script)
+	g.logger.Debug("%s registered.", script.String())
 	return nil
 }
 func (g *Gubot) RegisterScripts(scripts []Script) error {
@@ -211,6 +254,7 @@ func (g *Gubot) UnregisterScript(script Script) error {
 	scripts := *g.scripts
 	scripts = append(scripts[:i], scripts[i + 1:]...)
 	*g.scripts = scripts
+	g.logger.Debug("%s unregistered.", script.String())
 	return nil
 }
 func (g *Gubot) UnregisterScripts(scripts []Script) error {
@@ -236,6 +280,7 @@ func (g *Gubot) UpdateScript(script Script) error {
 	scripts := *g.scripts
 	scripts[i] = script
 	*g.scripts = scripts
+	g.logger.Debug("%s updated.", script.String())
 	return nil
 }
 func (g *Gubot) UpdateScripts(scripts []Script) error {
@@ -269,6 +314,7 @@ func (g Gubot) Store() *gorm.DB {
 	return g.store
 }
 func (g *Gubot) Receive(envelop Envelop) {
+	g.logger.Debug("Received envelop=%v", envelop)
 	g.Emit(GubotEvent{
 		Action: EVENT_ROBOT_RECEIVED,
 		Envelop: envelop,
@@ -279,19 +325,24 @@ func (g *Gubot) Receive(envelop Envelop) {
 
 	err := g.SendMessages(envelop, toSends...)
 	if err != nil {
-		log.Println("Error when sending messages: " + err.Error())
+		g.logger.Error("Error when sending messages: " + err.Error())
 	}
 	err = g.RespondMessages(envelop, toReplies...)
 	if err != nil {
-		log.Println("Error when replying messages: " + err.Error())
+		g.logger.Error("Error when replying messages: " + err.Error())
 	}
 }
 func (g *Gubot) SendMessages(envelop Envelop, toSends ...string) error {
 	for _, adp := range g.adapters {
+		g.logger.Debug("Adapter '%s' chose a random message from list [\"%s\"] and sent it.",
+			adp.Name(),
+			strings.Join(toSends, "\", \""),
+		)
 		err := g.sendingEnvelop(envelop, adp.Send, EVENT_ROBOT_SEND, toSends)
 		if err != nil {
-			log.Println("Error when sending on adapter '" + adp.Name() + "' : " + err.Error())
+			g.logger.Error("Error when sending on adapter '" + adp.Name() + "' : " + err.Error())
 		}
+
 	}
 	return nil
 }
@@ -300,9 +351,13 @@ func (g *Gubot) RespondMessages(envelop Envelop, toReplies ...string) error {
 		return errors.New("You must provide a user name in envelop")
 	}
 	for _, adp := range g.adapters {
+		g.logger.Debug("Adapter '%s' chose a random message from list [\"%s\"] and reply to user.",
+			adp.Name(),
+			strings.Join(toReplies, "\", \""),
+		)
 		err := g.sendingEnvelop(envelop, adp.Reply, EVENT_ROBOT_RESPOND, toReplies)
 		if err != nil {
-			log.Println("Error when responding on adapter '" + adp.Name() + "' : " + err.Error())
+			g.logger.Error("Error when responding on adapter '" + adp.Name() + "' : " + err.Error())
 		}
 	}
 	return nil
@@ -332,7 +387,7 @@ func (g *Gubot) sendingEnvelop(envelop Envelop, adpFn func(Envelop, string) erro
 	g.Emit(GubotEvent{
 		Action: eventAction,
 		Envelop: envelop,
-		ChosenMessage: message,
+		Message: message,
 	})
 	return adpFn(envelop, message)
 }
@@ -345,7 +400,7 @@ func (g *Gubot) LoadStore() error {
 		if err != nil {
 			panic("failed to connect database")
 		}
-		log.Println("Sqlite file created in path: " + dbFile)
+		g.logger.Info("Sqlite file created in path: " + dbFile)
 	}
 	store.AutoMigrate(&User{})
 	store.AutoMigrate(&RemoteScript{})
@@ -380,8 +435,12 @@ func (g *Gubot) loadHost() {
 func (g Gubot) InitDefaultRoute() {
 	g.router.Handle("/", g.ApiAuthMatcher()(http.HandlerFunc(g.incoming))).Methods("POST")
 	g.router.Handle("/", http.HandlerFunc(g.showScripts)).Methods("GET")
+
 	mux.NewRouter()
-	apiRmtRouter := g.router.PathPrefix("/api/remote").Subrouter()
+	apiRouter := g.router.PathPrefix("/api").Subrouter()
+	apiRouter.HandleFunc("/websocket", g.serveWebSocket)
+
+	apiRmtRouter := apiRouter.PathPrefix("/remote").Subrouter()
 	apiRmtRouter.Handle("/scripts", g.ApiAuthMatcher()(http.HandlerFunc(g.registerRemoteScripts))).Methods("POST")
 	apiRmtRouter.Handle("/scripts", g.ApiAuthMatcher()(http.HandlerFunc(g.deleteRemoteScripts))).Methods("DELETE")
 	apiRmtRouter.Handle("/scripts", g.ApiAuthMatcher()(http.HandlerFunc(g.updateRemoteScripts))).Methods("PUT")
@@ -432,9 +491,10 @@ func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 		if !match(script.Matcher, message) {
 			continue
 		}
+		g.logger.Debug("%s respond on envelop=%v", script.String(), envelop)
 		messages, err := script.Function(envelop, allSubMatch(script.Matcher, message))
 		if err != nil {
-			log.Println(fmt.Sprintf("Error on script '%s': %s", script.Name, err.Error()))
+			g.logger.Error(fmt.Sprintf("Error on script '%s': %s", script.Name, err.Error()))
 			continue
 		}
 		toSends = append(toSends, messages...)
@@ -507,13 +567,21 @@ func (g *Gubot) InitializeHelp() {
 		Type: Tsend,
 	})
 }
-func (g *Gubot) Start(port int) error {
+func (g *Gubot) Start(addr string) error {
 	defer g.GubotEmitter.Off("*")
 	var conf GubotConfig
 	err := g.gautocloud.Inject(&conf)
 	if err != nil {
 		return err
 	}
+	if conf.LogLevel != "" {
+		g.SetLogLevel(conf.LogLevel)
+		g.gautocloud.SetLogger(
+			log.New(os.Stdout, "", log.Lshortfile | log.Ldate | log.Ltime),
+			logger.Level(g.logger.GetLevel()),
+		)
+	}
+
 	if conf.SkipInsecure {
 		g.SkipInsecure()
 	}
@@ -524,7 +592,7 @@ func (g *Gubot) Start(port int) error {
 	if len(g.tokens) == 0 {
 		defaultToken := uuid.NewV4().String()
 		g.tokens = []string{defaultToken}
-		log.Println("Generated token: " + defaultToken)
+		g.logger.Info("Generated token: " + defaultToken)
 	}
 	if conf.Host != "" {
 		g.host = conf.Host
@@ -535,7 +603,7 @@ func (g *Gubot) Start(port int) error {
 	g.Emit(GubotEvent{
 		Action: EVENT_ROBOT_INITIALIZED_STORE,
 	})
-	log.Println("Listening on port: " + strconv.Itoa(port))
+	g.logger.Info("Listening on `" + addr + "`")
 	g.runAdapters()
 	g.InitDefaultRoute()
 	g.InitializeHelp()
@@ -545,5 +613,5 @@ func (g *Gubot) Start(port int) error {
 	g.Emit(GubotEvent{
 		Action: EVENT_ROBOT_STARTED,
 	})
-	return http.ListenAndServe(":" + strconv.Itoa(port), g.router)
+	return http.ListenAndServe(addr, g.router)
 }

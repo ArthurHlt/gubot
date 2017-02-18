@@ -13,6 +13,7 @@ const CONFIG_FILENAME = "config_gubot.yml"
 
 type GubotConfig struct {
 	Tokens       []string               `yaml:"tokens"`
+	LogLevel     string                 `yaml:"log_level"`
 	Name         string                 `yaml:"name"`
 	Host         string                 `yaml:"host"`
 	SkipInsecure bool                   `yaml:"skip_insecure"`
@@ -98,6 +99,7 @@ func (c *ConfFileCloudEnv) Load() error {
 	conf.Config["name"] = conf.Name
 	conf.Config["host"] = conf.Host
 	conf.Config["tokens"] = conf.Tokens
+	conf.Config["log_level"] = conf.LogLevel
 	c.credentials = conf.Config
 
 	c.services = conf.Services

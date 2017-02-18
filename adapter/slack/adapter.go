@@ -4,11 +4,11 @@ import (
 	"github.com/ArthurHlt/gubot/robot"
 	"errors"
 	"net/http"
-	"log"
 	"strings"
 	"encoding/json"
 	"bytes"
 	"strconv"
+	"github.com/ArthurHlt/gominlog"
 )
 
 func init() {
@@ -33,6 +33,7 @@ type Notification struct {
 }
 type SlackAdapter struct {
 	config *SlackConfig
+	logger *gominlog.MinLog
 	gubot  *robot.Gubot
 }
 
@@ -89,6 +90,7 @@ func (a SlackAdapter) getChannel(envelop robot.Envelop) string {
 func (a *SlackAdapter) Run(config interface{}, gubot *robot.Gubot) error {
 	slackConf := config.(*SlackConfig)
 	a.gubot = gubot
+	a.logger = gubot.Logger()
 	if slackConf.SlackGubotUsername == "" {
 		slackConf.SlackGubotUsername = gubot.Name()
 	}
@@ -109,7 +111,7 @@ func (a SlackAdapter) handler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	if !a.isValidToken(req.PostForm.Get("token")) {
 		w.WriteHeader(http.StatusUnauthorized)
-		log.Println("Error with slack adapter: given token is not valid.")
+		a.logger.Error("Error with slack adapter: token given is not valid.")
 		return
 	}
 	triggerWord := req.PostForm.Get("trigger_word")
