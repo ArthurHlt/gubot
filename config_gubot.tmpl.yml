@@ -2,7 +2,7 @@ name: gubot
 skip_insecure: false # skip ssl verification (scripts and adapters have to use the httpclient created by gubot)
 tokens:
 - atokentosecuredata # it can be token gave by slack for example or own tokens which must be complicated
-host: http://localhost:8080
+#host: http://localhost:8080 # (optional) this is only to be able to give default icons. this is totally unnecessary in a cloud environment
 log_level: ~ # info when it's nil, other values can be: off, all, warning, severe, error, debug and info
 config:
   slack_income_url: "http://localhost/hooks/975rc3rxyjbs5pz8e4rjn7mm5y"
