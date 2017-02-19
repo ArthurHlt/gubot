@@ -493,7 +493,6 @@ func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 			continue
 		}
 		message := script.Sanitizer(envelop.Message)
-		fmt.Println("'" + message + "'")
 		if !match(script.Matcher, message) {
 			continue
 		}
