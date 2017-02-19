@@ -24,7 +24,7 @@ It supports 3 different chat services by default:
     - [Example on Cloud Foundry](#cloud-foundry)
     - [Example on Heroku](#heroku)
 - [Unified configuration system](#unified-configuration-system)
-- [Create your own script(s)](#create-your-own-script(s))
+- [Create your own script(s)](#create-your-own-scripts)
   - [Overview](#overview) 
   - [Listen for Gubot events](#listen-for-gubot-events) 
   - [Listen for Gubot events](#listen-for-gubot-events) 
