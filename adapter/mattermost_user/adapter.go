@@ -217,14 +217,14 @@ func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) erro
 			}
 			if event.Event == model.WEBSOCKET_EVENT_USER_ADDED {
 				a.gubot.Emit(robot.GubotEvent{
-					Action: robot.EVENT_ROBOT_CHANNEL_ENTER,
+					Name: robot.EVENT_ROBOT_CHANNEL_ENTER,
 					Envelop: a.eventToEnvelop(event),
 				})
 				continue
 			}
 			if event.Event == model.WEBSOCKET_EVENT_USER_REMOVED {
 				a.gubot.Emit(robot.GubotEvent{
-					Action: robot.EVENT_ROBOT_CHANNEL_LEAVE,
+					Name: robot.EVENT_ROBOT_CHANNEL_LEAVE,
 					Envelop: a.eventToEnvelop(event),
 				})
 				continue
@@ -271,7 +271,7 @@ func (a *MattermostUserAdapter) emitStatusChange() {
 	for userId, _ := range onlineUsersReceived {
 		if _, ok := a.onlineUsers[userId]; !ok && userId != a.me.Id {
 			a.gubot.Emit(robot.GubotEvent{
-				Action: robot.EVENT_ROBOT_USER_ONLINE,
+				Name: robot.EVENT_ROBOT_USER_ONLINE,
 				Envelop: a.userIdToDirectEnvelop(userId),
 			})
 		}
@@ -279,7 +279,7 @@ func (a *MattermostUserAdapter) emitStatusChange() {
 	for userId, _ := range a.onlineUsers {
 		if _, ok := onlineUsersReceived[userId]; !ok && userId != a.me.Id {
 			a.gubot.Emit(robot.GubotEvent{
-				Action: robot.EVENT_ROBOT_USER_OFFLINE,
+				Name: robot.EVENT_ROBOT_USER_OFFLINE,
 				Envelop: a.userIdToDirectEnvelop(userId),
 			})
 		}

@@ -29,13 +29,13 @@ func init() {
 			Name: "badger",
 			Matcher: "(?i)badger",
 			Function: e.badger,
-			Type: robot.Tsend,
+			Type: robot.Tsend, // will just send a message
 		},
 		{
 			Name: "doors",
 			Matcher: "(?i)open the (.*) doors",
 			Function: e.doors,
-			Type: robot.Trespond,
+			Type: robot.Trespond, // will send a message by explicitly responding to a user
 		},
 		{
 			Name: "lulz",
@@ -218,7 +218,7 @@ func (e *ExampleScript) listen() {
 			gubotEvent := robot.ToGubotEvent(event)
 			err := robot.RespondMessages(gubotEvent.Envelop, "Hi", "Target Acquired", "Firing", "Hello friend.", "Gotcha", "I see you")
 			if err != nil {
-				fmt.Println(err)
+				robot.Logger().Error(err)
 			}
 		}
 	}()
@@ -227,7 +227,7 @@ func (e *ExampleScript) listen() {
 			gubotEvent := robot.ToGubotEvent(event)
 			err := robot.RespondMessages(gubotEvent.Envelop, "Are you still there?", "Target lost", "Searching")
 			if err != nil {
-				fmt.Println(err)
+				robot.Logger().Error(err)
 			}
 		}
 	}()

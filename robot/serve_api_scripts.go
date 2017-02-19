@@ -105,6 +105,15 @@ func (g *Gubot) deleteRemoteScripts(w http.ResponseWriter, req *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 }
+func (g *Gubot) listRemoteScripts(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	var rmtScripts []RemoteScript
+	robot.Store().Find(&rmtScripts)
+	data, _ := json.MarshalIndent(rmtScripts, "", "\t")
+	w.Write(data)
+}
 func (g *Gubot) updateRemoteScripts(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-type", "application/json")
 	notExistingScript := make([]RemoteScript, 0)
@@ -135,7 +144,7 @@ func (g *Gubot) updateRemoteScripts(w http.ResponseWriter, req *http.Request) {
 		var whereScript RemoteScript
 		whereScript.Name = script.Name
 		g.Store().Where(&whereScript).First(&dbScript)
-		g.UnregisterScript(dbScript)
+		g.UnregisterScript(dbScript.ToScript())
 		g.logger.Info("Client '%s' on api update script: %s.", getRemoteIp(req), dbScript.String())
 		dbScript.Matcher = script.Matcher
 		dbScript.Type = script.Type

@@ -1,7 +1,7 @@
 name: gubot
-skip_insecure: false
+skip_insecure: false # skip ssl verification (scripts and adapters have to use the httpclient created by gubot)
 tokens:
-- atokentosecuredata
+- atokentosecuredata # it can be token gave by slack for example or own tokens which must be complicated
 host: http://localhost:8080
 log_level: ~ # info when it's nil, other values can be: off, all, warning, severe, error, debug and info
 config:

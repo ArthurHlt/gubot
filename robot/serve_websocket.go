@@ -104,27 +104,29 @@ func (g *Gubot) serveWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func sendWebSocketEvent(ws *websocket.Conn, gubotEvent GubotEvent, seq int) error {
+	var err error
 	for i := 0; i < WEB_SOCKET_MAX_RETRY; i++ {
-		err := ws.WriteJSON(WebSocketRequest{
+		err = nil
+		err = ws.WriteJSON(WebSocketRequest{
 			Event: gubotEvent,
 			Seq: seq,
 			Status: WEB_SOCKET_STATUS_OK,
 		})
 		if err != nil {
-			if websocket.IsCloseError(err) {
-				return err
+			if !websocket.IsCloseError(err) {
+				err = errors.New(fmt.Sprintf("Error when writing event %s: %s .", gubotEvent.Name, err.Error()))
 			}
-			return errors.New(fmt.Sprintf("Error when writing event %s: %s .", gubotEvent.Action, err.Error()))
+			continue
 		}
 		ws.SetReadDeadline(time.Now().Add(time.Duration(WEB_SOCKET_READ_DEADLINE) * time.Second))
 		var resp WebSocketRequest
 		err = ws.ReadJSON(&resp)
-		if err != nil {
-			if websocket.IsCloseError(err) {
-				return err
-			}
-			return errors.New(fmt.Sprintf("Error when reading reply after event %s: %s .", gubotEvent.Action, err.Error()))
 
+		if err != nil {
+			if !websocket.IsCloseError(err) {
+				err = errors.New(fmt.Sprintf("Error when reading reply after event %s: %s .", gubotEvent.Name, err.Error()))
+			}
+			continue
 		}
 		if resp.SeqReply != seq {
 			ws.WriteJSON(WebSocketRequest{
@@ -139,11 +141,14 @@ func sendWebSocketEvent(ws *websocket.Conn, gubotEvent GubotEvent, seq int) erro
 		}
 		break
 	}
+	if err != nil {
+		return err
+	}
 	return nil
 }
 func (w WebSocketRequest) IsInError() bool {
 	return w.Status == WEB_SOCKET_STATUS_FAIL && w.Error != ""
 }
 func (w WebSocketRequest) IsValid() bool {
-	return w.Error != "" || w.Event.Action != ""
+	return w.Error != "" || w.Event.Name != ""
 }

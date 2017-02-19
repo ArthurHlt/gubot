@@ -36,10 +36,10 @@ const (
 )
 const (
 	EVENT_ROBOT_STARTED EventAction = "started"
-	EVENT_ROBOT_CHANNEL_ENTER EventAction = "enter"
-	EVENT_ROBOT_CHANNEL_LEAVE EventAction = "leave"
-	EVENT_ROBOT_USER_ONLINE EventAction = "online"
-	EVENT_ROBOT_USER_OFFLINE EventAction = "offline"
+	EVENT_ROBOT_CHANNEL_ENTER EventAction = "channel_enter"
+	EVENT_ROBOT_CHANNEL_LEAVE EventAction = "channel_leave"
+	EVENT_ROBOT_USER_ONLINE EventAction = "user_online"
+	EVENT_ROBOT_USER_OFFLINE EventAction = "user_offline"
 	EVENT_ROBOT_INITIALIZED EventAction = "initialized"
 	EVENT_ROBOT_INITIALIZED_STORE EventAction = "initialized_store"
 	EVENT_ROBOT_RECEIVED EventAction = "received"
@@ -49,7 +49,7 @@ const (
 
 type EventAction string
 type GubotEvent struct {
-	Action  EventAction
+	Name    EventAction
 	Envelop Envelop
 	Message string
 }
@@ -131,7 +131,7 @@ func (g *Gubot) registerUser(envelop Envelop) {
 	}
 }
 func (g Gubot) Emit(event GubotEvent) {
-	<-g.GubotEmitter.Emit(string(event.Action), event)
+	<-g.GubotEmitter.Emit(string(event.Name), event)
 }
 func (g Gubot) On(eventAction EventAction, middlewares ...func(*emitter.Event)) <- chan emitter.Event {
 	return g.GubotEmitter.On(string(eventAction), middlewares...)
@@ -316,7 +316,7 @@ func (g Gubot) Store() *gorm.DB {
 func (g *Gubot) Receive(envelop Envelop) {
 	g.logger.Debug("Received envelop=%v", envelop)
 	g.Emit(GubotEvent{
-		Action: EVENT_ROBOT_RECEIVED,
+		Name: EVENT_ROBOT_RECEIVED,
 		Envelop: envelop,
 	})
 	g.registerUser(envelop)
@@ -385,7 +385,7 @@ func (g *Gubot) sendingEnvelop(envelop Envelop, adpFn func(Envelop, string) erro
 		envelop.IconUrl = host + icon_route
 	}
 	g.Emit(GubotEvent{
-		Action: eventAction,
+		Name: eventAction,
 		Envelop: envelop,
 		Message: message,
 	})
@@ -439,13 +439,14 @@ func (g Gubot) InitDefaultRoute() {
 	mux.NewRouter()
 	apiRouter := g.router.PathPrefix("/api").Subrouter()
 	apiRouter.HandleFunc("/websocket", g.serveWebSocket)
+	apiRouter.Handle("/send", g.ApiAuthMatcher()(http.HandlerFunc(g.sendMessagesRemoteScripts))).Methods("POST")
+	apiRouter.Handle("/respond", g.ApiAuthMatcher()(http.HandlerFunc(g.respondMessagesRemoteScripts))).Methods("POST")
 
 	apiRmtRouter := apiRouter.PathPrefix("/remote").Subrouter()
 	apiRmtRouter.Handle("/scripts", g.ApiAuthMatcher()(http.HandlerFunc(g.registerRemoteScripts))).Methods("POST")
 	apiRmtRouter.Handle("/scripts", g.ApiAuthMatcher()(http.HandlerFunc(g.deleteRemoteScripts))).Methods("DELETE")
 	apiRmtRouter.Handle("/scripts", g.ApiAuthMatcher()(http.HandlerFunc(g.updateRemoteScripts))).Methods("PUT")
-	apiRmtRouter.Handle("/send", g.ApiAuthMatcher()(http.HandlerFunc(g.sendMessagesRemoteScripts))).Methods("POST")
-	apiRmtRouter.Handle("/respond", g.ApiAuthMatcher()(http.HandlerFunc(g.respondMessagesRemoteScripts))).Methods("POST")
+	apiRmtRouter.Handle("/scripts", g.ApiAuthMatcher()(http.HandlerFunc(g.listRemoteScripts))).Methods("GET")
 
 	staticDir := "static"
 	if stat, err := os.Stat(staticDir); err == nil && stat.IsDir() {
@@ -464,6 +465,9 @@ func (g Gubot) IsSecured(w http.ResponseWriter, req *http.Request) bool {
 	auth := false
 	req.ParseForm()
 	if g.IsValidToken(req.Header.Get("X-Auth-Token")) {
+		auth = true
+	}
+	if g.IsValidToken(req.Header.Get("Authorization")) {
 		auth = true
 	}
 	if g.IsValidToken(req.Form.Get("token")) {
@@ -601,17 +605,17 @@ func (g *Gubot) Start(addr string) error {
 	}
 	g.LoadStore()
 	g.Emit(GubotEvent{
-		Action: EVENT_ROBOT_INITIALIZED_STORE,
+		Name: EVENT_ROBOT_INITIALIZED_STORE,
 	})
 	g.logger.Info("Listening on `" + addr + "`")
 	g.runAdapters()
 	g.InitDefaultRoute()
 	g.InitializeHelp()
 	g.Emit(GubotEvent{
-		Action: EVENT_ROBOT_INITIALIZED,
+		Name: EVENT_ROBOT_INITIALIZED,
 	})
 	g.Emit(GubotEvent{
-		Action: EVENT_ROBOT_STARTED,
+		Name: EVENT_ROBOT_STARTED,
 	})
 	return http.ListenAndServe(addr, g.router)
 }
