@@ -9,7 +9,7 @@ func NoSanitize(text string) string {
 	return text
 }
 func SanitizeDefault(text string) string {
-	return SanitizeSpaces(SanitizeNewLine(SanitizeTab(text)))
+	return strings.TrimSpace(SanitizeSpaces(SanitizeNewLine(SanitizeTab(text))))
 }
 func SanitizeSpaces(text string) string {
 	return sanitizeGeneric(text, "  ", " ")

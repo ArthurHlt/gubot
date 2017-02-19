@@ -3,7 +3,6 @@ package robot
 import (
 	"net/http"
 	"github.com/gorilla/websocket"
-	"log"
 	"fmt"
 	"errors"
 	"time"
@@ -97,7 +96,7 @@ func (g *Gubot) serveWebSocket(w http.ResponseWriter, r *http.Request) {
 			if websocket.IsCloseError(err) {
 				return
 			}
-			log.Println(err)
+			g.logger.Error(err.Error())
 			return
 		}
 		seq++

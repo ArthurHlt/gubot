@@ -314,6 +314,7 @@ func (g Gubot) Store() *gorm.DB {
 	return g.store
 }
 func (g *Gubot) Receive(envelop Envelop) {
+	envelop.FromReceived = true
 	g.logger.Debug("Received envelop=%v", envelop)
 	g.Emit(GubotEvent{
 		Name: EVENT_ROBOT_RECEIVED,
@@ -492,6 +493,7 @@ func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 			continue
 		}
 		message := script.Sanitizer(envelop.Message)
+		fmt.Println("'" + message + "'")
 		if !match(script.Matcher, message) {
 			continue
 		}

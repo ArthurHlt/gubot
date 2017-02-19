@@ -8,6 +8,7 @@ type Envelop struct {
 	NotMentioned bool                   `json:"not_mentioned"`
 	User         UserEnvelop            `json:"user"`
 	Properties   map[string]interface{} `json:"properties"`
+	FromReceived bool                   `json:"from_received"`
 }
 type UserEnvelop struct {
 	Name        string                 `json:"name"`
