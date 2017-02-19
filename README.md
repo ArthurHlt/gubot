@@ -27,7 +27,7 @@ It supports 3 different chat services by default:
 - [Create your own script(s)](#create-your-own-scripts)
   - [Overview](#overview) 
   - [Listen for Gubot events](#listen-for-gubot-events) 
-  - [Listen for Gubot events](#listen-for-gubot-events) 
+  - [Sanitizers mechanism](#sanitizers-mechanism) 
   - [Use the available router](#use-the-available-router) 
   - [Use the store system](#use-the-store-system) 
 - [Create your own adapter](#create-your-own-adapter)
@@ -201,7 +201,7 @@ func init(){
     			Function: func(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
                           	return []string{"Badgers? BADGERS? WE DON'T NEED NO STINKIN BADGERS"}, nil
                           },
-    			Type: robot.Tsend,
+    			Type: robot.Tsend, // robot.Tsend to send without responding to user and robot.Trespond to respond to a user
     		},
     })
 }
@@ -243,6 +243,35 @@ robot.On(robot.EVENT_ROBOT_INITIALIZED_STORE, func(event *emitter.Event) { // ju
 		        MyFakeFieldForTable string
 		}{})
 })
+```
+
+### Sanitizers mechanism
+
+When registering a script you can pass a sanitize function (a `func(string) string` function), this function will be call 
+on the message received from the chat service to sanitize the message. If none are set Gubot will add the function `SanitizeDefault()`
+ (which can be see in file [/robot/sanitizer.go](/robot/sanitizer.go)) which remove multiples spaces, newlines and tabs.
+ 
+You can found sanitize function to use directly in [/robot/sanitizer.go](/robot/sanitizer.go).
+
+Here an example:
+
+```go
+func init(){
+    robot.RegisterScripts([]robot.Script{
+    		{
+    			Name: "badger",
+    			Matcher: "(?i)badger",
+    			Function: func(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
+                          	return []string{"Badgers? BADGERS? WE DON'T NEED NO STINKIN BADGERS"}, nil
+                          },
+    			Type: robot.Tsend,
+    			Sanitizer: func(text string) string { // this function is directly available with robot.SanitizeDefaultWithSpecialChar
+                            r := regexp.MustCompile("[^(\\w|\\s)]") //it removes all things which are not spaces and words (comma, colons, plus ...)
+                            return SanitizeDefault(r.ReplaceAllString(text, ""))
+                           },
+    		},
+    })
+}
 ```
 
 ### Use the available router
