@@ -4,10 +4,10 @@ if [ "$?" == "1" ]; then
     curl https://glide.sh/get | sh
 fi
 
-glide create
-glide get github.com/ArthurHlt/gubot/robot
-glide get github.com/ArthurHlt/gubot/adapter
-glide get github.com/ArthurHlt/gubot/scripts
+glide create --non-interactive
+glide get --non-interactive github.com/ArthurHlt/gubot/robot
+glide get --non-interactive github.com/ArthurHlt/gubot/adapter
+glide get --non-interactive github.com/ArthurHlt/gubot/scripts
 
 if hash curl 2>/dev/null; then
     curl https://raw.githubusercontent.com/ArthurHlt/gubot/master/main.go > main.go
