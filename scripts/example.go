@@ -33,7 +33,7 @@ func init() {
 		},
 		{
 			Name: "doors",
-			Matcher: "(?i)open the (.*) doors",
+			Matcher: "(?i)open the (.*) doors", // you can have text inside (.*) inside submatch in your function
 			Function: e.doors,
 			Type: robot.Trespond, // will send a message by explicitly responding to a user
 		},
