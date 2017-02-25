@@ -381,7 +381,7 @@ func (g *Gubot) sendingEnvelop(envelop Envelop, adpFn func(Envelop, string) erro
 		host := g.host
 		if strings.HasPrefix(host, "https") {
 			host = strings.TrimPrefix(host, "https")
-			host += "http" + host
+			host = "http" + host
 		}
 		envelop.IconUrl = host + icon_route
 	}

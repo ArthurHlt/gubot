@@ -13,6 +13,8 @@ import (
 	"time"
 	"strings"
 	"github.com/ArthurHlt/gominlog"
+	"github.com/gorilla/websocket"
+	"crypto/tls"
 )
 
 func init() {
@@ -191,6 +193,9 @@ func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) erro
 		return appErr
 	}
 	a.client = client
+	websocket.DefaultDialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: gubot.HttpClient().Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify,
+	}
 	clientWs, appErr := model.NewWebSocketClient(wsMattApi.String(), client.AuthToken)
 	if appErr != nil {
 		return appErr
