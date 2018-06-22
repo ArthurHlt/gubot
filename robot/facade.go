@@ -2,10 +2,9 @@ package robot
 
 import (
 	"github.com/gorilla/mux"
-	"net/http"
 	"github.com/jinzhu/gorm"
 	"github.com/olebedev/emitter"
-	"github.com/ArthurHlt/gominlog"
+	"net/http"
 )
 
 var robot *Gubot = NewGubot()
@@ -16,10 +15,10 @@ func Robot() *Gubot {
 func Emitter() *emitter.Emitter {
 	return robot.Emitter()
 }
-func On(eventAction EventAction, middlewares ...func(*emitter.Event)) <- chan emitter.Event {
+func On(eventAction EventAction, middlewares ...func(*emitter.Event)) <-chan emitter.Event {
 	return robot.On(eventAction, middlewares...)
 }
-func Once(eventAction EventAction, middlewares ...func(*emitter.Event)) <- chan emitter.Event {
+func Once(eventAction EventAction, middlewares ...func(*emitter.Event)) <-chan emitter.Event {
 	return robot.Once(eventAction, middlewares...)
 }
 func Emit(event GubotEvent) {
@@ -100,12 +99,6 @@ func GetScripts() []Script {
 }
 func IsValidToken(tokenToCheck string) bool {
 	return robot.IsValidToken(tokenToCheck)
-}
-func Logger() *gominlog.MinLog {
-	return robot.Logger()
-}
-func SetLogger(minLog *gominlog.MinLog) {
-	robot.SetLogger(minLog)
 }
 func SetLogLevel(level string) {
 	robot.SetLogLevel(level)

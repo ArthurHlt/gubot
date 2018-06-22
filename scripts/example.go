@@ -9,13 +9,15 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
 	"github.com/olebedev/emitter"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func init() {
 	var conf ExampleScriptConfig
 	robot.GetConfig(&conf)
 	e := &ExampleScript{
-		annoy: make(map[string]bool),
+		annoy:  make(map[string]bool),
 		config: conf,
 	}
 	// we create the table in database only when the store has been initialized
@@ -26,61 +28,61 @@ func init() {
 	robot.Router().HandleFunc("/gubot/chatsecrets/{channel}", e.handlerChatsecret)
 	robot.RegisterScripts([]robot.Script{
 		{
-			Name: "badger",
-			Matcher: "(?i)badger",
+			Name:     "badger",
+			Matcher:  "(?i)badger",
 			Function: e.badger,
-			Type: robot.Tsend, // will just send a message
+			Type:     robot.Tsend, // will just send a message
 		},
 		{
-			Name: "doors",
-			Matcher: "(?i)open the (.*) doors", // you can have text inside (.*) inside submatch in your function
+			Name:     "doors",
+			Matcher:  "(?i)open the (.*) doors", // you can have text inside (.*) inside submatch in your function
 			Function: e.doors,
-			Type: robot.Trespond, // will send a message by explicitly responding to a user
+			Type:     robot.Trespond, // will send a message by explicitly responding to a user
 		},
 		{
-			Name: "lulz",
-			Matcher: "(?i)lulz",
+			Name:     "lulz",
+			Matcher:  "(?i)lulz",
 			Function: e.lulz,
-			Type: robot.Tsend,
+			Type:     robot.Tsend,
 		},
 		{
-			Name: "Ultimate question",
+			Name:        "Ultimate question",
 			Description: "Answer to the ultimate question",
-			Matcher: "(?i)what is the answer to the ultimate question of life",
-			Function: e.ultimateQuestion,
-			Type: robot.Tsend,
+			Matcher:     "(?i)what is the answer to the ultimate question of life",
+			Function:    e.ultimateQuestion,
+			Type:        robot.Tsend,
 		},
 		{
-			Name: "annoy",
-			Example: "`annoy me`",
-			Matcher: "(?i)^annoy me",
+			Name:     "annoy",
+			Example:  "`annoy me`",
+			Matcher:  "(?i)^annoy me",
 			Function: e.annoyMe,
-			Type: robot.Tsend,
+			Type:     robot.Tsend,
 		},
 		{
-			Name: "unannoy",
-			Example: "`unannoy me`",
-			Matcher: "(?i)^unannoy me",
+			Name:     "unannoy",
+			Example:  "`unannoy me`",
+			Matcher:  "(?i)^unannoy me",
 			Function: e.unannoyMe,
-			Type: robot.Tsend,
+			Type:     robot.Tsend,
 		},
 		{
-			Name: "menu order",
+			Name:        "menu order",
 			Description: "order something to eat",
-			Example: "menu order with pizza, coca & pies",
-			Matcher: "(?i)menu order (with)? ([a-z]*) ([a-z]*)? ([a-z]*)?",
-			Function: e.menu,
-			Sanitizer: robot.SanitizeDefaultWithSpecialChar,
-			Type: robot.Tsend,
+			Example:     "menu order with pizza, coca & pies",
+			Matcher:     "(?i)menu order (with)? ([a-z]*) ([a-z]*)? ([a-z]*)?",
+			Function:    e.menu,
+			Sanitizer:   robot.SanitizeDefaultWithSpecialChar,
+			Type:        robot.Tsend,
 		},
 		{
-			Name: "menu list",
-			Description: "list all orders",
-			Example: "menu list",
-			Matcher: "(?i)menu list",
+			Name:             "menu list",
+			Description:      "list all orders",
+			Example:          "menu list",
+			Matcher:          "(?i)menu list",
 			TriggerOnMention: true,
-			Function: e.menuShow,
-			Type: robot.Tsend,
+			Function:         e.menuShow,
+			Type:             robot.Tsend,
 		},
 	})
 }
@@ -128,9 +130,9 @@ func (e ExampleScript) menu(envelop robot.Envelop, subMatch [][]string) ([]strin
 		UserId: envelop.User.Id,
 	}).First(&user)
 	robot.Store().Create(&ExampleMenu{
-		User: user,
-		Plate: plate,
-		Drink: drink,
+		User:    user,
+		Plate:   plate,
+		Drink:   drink,
 		Dessert: dessert,
 	})
 	return e.menuShow(envelop, subMatch)
@@ -164,10 +166,10 @@ func (e *ExampleScript) ultimateQuestion(envelop robot.Envelop, subMatch [][]str
 	return []string{e.config.GubotAnswerToTheUltimateQuestionOfLifeTheUniverseAndEverything + ", but what is the question?"}, nil
 }
 func (e *ExampleScript) annoyMe(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
-	e.annoy[envelop.ChannelName + envelop.ChannelId] = true
+	e.annoy[envelop.ChannelName+envelop.ChannelId] = true
 	go func() {
 		for {
-			if !e.annoy[envelop.ChannelName + envelop.ChannelId] {
+			if !e.annoy[envelop.ChannelName+envelop.ChannelId] {
 				break
 			}
 			robot.SendMessages(envelop, "AAAAAAAAAAAEEEEEEEEEEEEEEEEEEEEEEEEIIIIIIIIHHHHHHHHHH")
@@ -178,8 +180,8 @@ func (e *ExampleScript) annoyMe(envelop robot.Envelop, subMatch [][]string) ([]s
 }
 func (e *ExampleScript) unannoyMe(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
 	message := "Not annoying you right now, am I?"
-	if e.annoy[envelop.ChannelName + envelop.ChannelId] {
-		e.annoy[envelop.ChannelName + envelop.ChannelId] = false
+	if e.annoy[envelop.ChannelName+envelop.ChannelId] {
+		e.annoy[envelop.ChannelName+envelop.ChannelId] = false
 		message = "GUYS, GUYS, GUYS!"
 	}
 	return []string{message}, nil
@@ -199,7 +201,7 @@ func (e ExampleScript) handlerChatsecret(w http.ResponseWriter, req *http.Reques
 	vars := mux.Vars(req)
 	err = robot.SendMessages(robot.Envelop{
 		ChannelName: vars["channel"],
-	}, "I have a secret: " + secretMessage.Secret)
+	}, "I have a secret: "+secretMessage.Secret)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		b, _ := json.MarshalIndent(struct {
@@ -218,7 +220,7 @@ func (e *ExampleScript) listen() {
 			gubotEvent := robot.ToGubotEvent(event)
 			err := robot.RespondMessages(gubotEvent.Envelop, "Hi", "Target Acquired", "Firing", "Hello friend.", "Gotcha", "I see you")
 			if err != nil {
-				robot.Logger().Error(err)
+				log.Error(err)
 			}
 		}
 	}()
@@ -227,7 +229,7 @@ func (e *ExampleScript) listen() {
 			gubotEvent := robot.ToGubotEvent(event)
 			err := robot.RespondMessages(gubotEvent.Envelop, "Are you still there?", "Target lost", "Searching")
 			if err != nil {
-				robot.Logger().Error(err)
+				log.Error(err)
 			}
 		}
 	}()

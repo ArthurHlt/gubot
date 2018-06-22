@@ -1,14 +1,14 @@
 package slack
 
 import (
-	"github.com/ArthurHlt/gubot/robot"
-	"errors"
-	"net/http"
-	"strings"
-	"encoding/json"
 	"bytes"
+	"encoding/json"
+	"errors"
+	"github.com/ArthurHlt/gubot/robot"
+	log "github.com/sirupsen/logrus"
+	"net/http"
 	"strconv"
-	"github.com/ArthurHlt/gominlog"
+	"strings"
 )
 
 func init() {
@@ -33,7 +33,6 @@ type Notification struct {
 }
 type SlackAdapter struct {
 	config *SlackConfig
-	logger *gominlog.MinLog
 	gubot  *robot.Gubot
 }
 
@@ -72,14 +71,14 @@ func (a SlackAdapter) envelopToNotif(envelop robot.Envelop) Notification {
 		iconUrl = envelop.IconUrl
 	}
 	return Notification{
-		Username: username,
-		Channel: a.getChannel(envelop),
+		Username:  username,
+		Channel:   a.getChannel(envelop),
 		IconEmoji: a.config.SlackIconEmoji,
-		IconURL: iconUrl,
+		IconURL:   iconUrl,
 	}
 }
 func (a SlackAdapter) Reply(envelop robot.Envelop, message string) error {
-	return a.Send(envelop, "@" + envelop.User.Name + ": " + message)
+	return a.Send(envelop, "@"+envelop.User.Name+": "+message)
 }
 func (a SlackAdapter) getChannel(envelop robot.Envelop) string {
 	if a.config.SlackChannel == "" {
@@ -90,7 +89,6 @@ func (a SlackAdapter) getChannel(envelop robot.Envelop) string {
 func (a *SlackAdapter) Run(config interface{}, gubot *robot.Gubot) error {
 	slackConf := config.(*SlackConfig)
 	a.gubot = gubot
-	a.logger = gubot.Logger()
 	if slackConf.SlackGubotUsername == "" {
 		slackConf.SlackGubotUsername = gubot.Name()
 	}
@@ -111,7 +109,7 @@ func (a SlackAdapter) handler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	if !a.isValidToken(req.PostForm.Get("token")) {
 		w.WriteHeader(http.StatusUnauthorized)
-		a.logger.Error("Error with slack adapter: token given is not valid.")
+		log.Error("Error with slack adapter: token given is not valid.")
 		return
 	}
 	triggerWord := req.PostForm.Get("trigger_word")

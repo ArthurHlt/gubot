@@ -1,20 +1,20 @@
 package mattermost_user
 
 import (
-	"github.com/ArthurHlt/gubot/robot"
-	"errors"
-	"github.com/mattermost/platform/model"
-	"net/url"
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/ArthurHlt/gubot/robot"
+	"github.com/gorilla/websocket"
+	"github.com/mattermost/mattermost-server/model"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
-	"strings"
-	"github.com/ArthurHlt/gominlog"
-	"github.com/gorilla/websocket"
-	"crypto/tls"
 )
 
 func init() {
@@ -53,7 +53,6 @@ type MattermostUserAdapter struct {
 	client      *model.Client
 	gubot       *robot.Gubot
 	mutex       *sync.Mutex
-	logger      *gominlog.MinLog
 	onlineUsers map[string]interface{}
 	me          *model.User
 }
@@ -61,7 +60,7 @@ type MattermostUserAdapter struct {
 func NewMattermostUserAdapter() robot.Adapter {
 	return &MattermostUserAdapter{
 		onlineUsers: make(map[string]interface{}),
-		mutex: new(sync.Mutex),
+		mutex:       new(sync.Mutex),
 	}
 }
 func (a MattermostUserAdapter) Send(envelop robot.Envelop, message string) error {
@@ -88,10 +87,10 @@ func (a MattermostUserAdapter) Send(envelop robot.Envelop, message string) error
 	}
 	post := &model.Post{
 		ChannelId: channelId,
-		Message: message,
+		Message:   message,
 	}
 	route := fmt.Sprintf("/teams/%v/channels/%v", teamId, channelId)
-	if r, err := a.client.DoApiPost(route + "/posts/create", post.ToJson()); err != nil {
+	if r, err := a.client.DoApiPost(route+"/posts/create", post.ToJson()); err != nil {
 		return err
 	} else {
 		closeBody(r)
@@ -108,7 +107,7 @@ func (a MattermostUserAdapter) getTeamIdByChannelId(channelId string) (string, e
 	for teamId, _ := range teams {
 		_, appErr := a.GetChannelById(teamId, channelId)
 		if appErr != nil {
-			a.logger.Error(appErr.Error())
+			log.Error(appErr.Error())
 			continue
 		}
 		return teamId, nil
@@ -157,12 +156,11 @@ func closeBody(r *http.Response) {
 	}
 }
 func (a MattermostUserAdapter) Reply(envelop robot.Envelop, message string) error {
-	return a.Send(envelop, "@" + envelop.User.Name + ": " + message)
+	return a.Send(envelop, "@"+envelop.User.Name+": "+message)
 }
 func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) error {
 	conf := config.(*MattermostUserConfig)
 	a.gubot = gubot
-	a.logger = gubot.Logger()
 	if conf.MattermostUsername == "" {
 		return errors.New("mattermost_username config param is required")
 	}
@@ -215,21 +213,21 @@ func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) erro
 			if event == nil {
 				appErr := clientWs.Connect()
 				if appErr != nil {
-					a.logger.Error("Error when reconnecting to web socket: " + appErr.Error())
+					log.Error("Error when reconnecting to web socket: " + appErr.Error())
 				}
 				clientWs.Listen()
 				continue
 			}
 			if event.Event == model.WEBSOCKET_EVENT_USER_ADDED {
 				a.gubot.Emit(robot.GubotEvent{
-					Name: robot.EVENT_ROBOT_CHANNEL_ENTER,
+					Name:    robot.EVENT_ROBOT_CHANNEL_ENTER,
 					Envelop: a.eventToEnvelop(event),
 				})
 				continue
 			}
 			if event.Event == model.WEBSOCKET_EVENT_USER_REMOVED {
 				a.gubot.Emit(robot.GubotEvent{
-					Name: robot.EVENT_ROBOT_CHANNEL_LEAVE,
+					Name:    robot.EVENT_ROBOT_CHANNEL_LEAVE,
 					Envelop: a.eventToEnvelop(event),
 				})
 				continue
@@ -276,7 +274,7 @@ func (a *MattermostUserAdapter) emitStatusChange() {
 	for userId, _ := range onlineUsersReceived {
 		if _, ok := a.onlineUsers[userId]; !ok && userId != a.me.Id {
 			a.gubot.Emit(robot.GubotEvent{
-				Name: robot.EVENT_ROBOT_USER_ONLINE,
+				Name:    robot.EVENT_ROBOT_USER_ONLINE,
 				Envelop: a.userIdToDirectEnvelop(userId),
 			})
 		}
@@ -284,7 +282,7 @@ func (a *MattermostUserAdapter) emitStatusChange() {
 	for userId, _ := range a.onlineUsers {
 		if _, ok := onlineUsersReceived[userId]; !ok && userId != a.me.Id {
 			a.gubot.Emit(robot.GubotEvent{
-				Name: robot.EVENT_ROBOT_USER_OFFLINE,
+				Name:    robot.EVENT_ROBOT_USER_OFFLINE,
 				Envelop: a.userIdToDirectEnvelop(userId),
 			})
 		}
@@ -294,7 +292,7 @@ func (a *MattermostUserAdapter) emitStatusChange() {
 func (a MattermostUserAdapter) userIdToDirectEnvelop(userId string) robot.Envelop {
 	resp, appErr := a.client.GetUser(userId, "")
 	if appErr != nil {
-		a.logger.Error("Cannot transform event in envelop")
+		log.Error("Cannot transform event in envelop")
 		return robot.Envelop{}
 	}
 	user := resp.Data.(*model.User)
@@ -318,7 +316,7 @@ func (a MattermostUserAdapter) eventToEnvelop(event *model.WebSocketEvent) robot
 	channelId := event.Broadcast.ChannelId
 	resp, appErr := a.client.GetUser(userId, "")
 	if appErr != nil {
-		a.logger.Error("Cannot transform event in envelop")
+		log.Error("Cannot transform event in envelop")
 		return robot.Envelop{}
 	}
 	user := resp.Data.(*model.User)
@@ -338,14 +336,14 @@ func (a MattermostUserAdapter) eventToEnvelop(event *model.WebSocketEvent) robot
 	envelop.User = userEnvelop
 	return envelop
 }
-func (a MattermostUserAdapter) sendingEnvelop(event *model.WebSocketEvent, mattMe  *model.User) {
+func (a MattermostUserAdapter) sendingEnvelop(event *model.WebSocketEvent, mattMe *model.User) {
 
 	channelName := event.Data["channel_name"].(string)
 	var postData PostData
 	postDataRaw := event.Data["post"].(string)
 	err := json.Unmarshal([]byte(postDataRaw), &postData)
 	if err != nil {
-		a.logger.Error("Error when unmarshalling data: " + err.Error())
+		log.Error("Error when unmarshalling data: " + err.Error())
 		return
 	}
 	if mattMe.Id == postData.UserID {
@@ -374,7 +372,7 @@ func (a MattermostUserAdapter) sendingEnvelop(event *model.WebSocketEvent, mattM
 	mentioned := a.isMentioned(event)
 	envelop.NotMentioned = !mentioned
 	if mentioned {
-		envelop.Message = strings.Replace(envelop.Message, "@" + a.me.Username, "", -1)
+		envelop.Message = strings.Replace(envelop.Message, "@"+a.me.Username, "", -1)
 		envelop.Message = strings.Replace(envelop.Message, a.me.Username, "", -1)
 		envelop.Message = strings.TrimSpace(envelop.Message)
 	}

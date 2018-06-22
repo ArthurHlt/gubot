@@ -1,19 +1,20 @@
 package robot
 
 import (
-	"net/http"
-	"github.com/gorilla/websocket"
-	"fmt"
 	"errors"
+	"fmt"
+	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
+	"net/http"
 	"time"
 )
 
 const (
 	WEB_SOCKET_MAX_MESSAGE_SIZE_KB int = 4096
-	WEB_SOCKET_STATUS_OK = "OK"
-	WEB_SOCKET_STATUS_FAIL = "FAIL"
-	WEB_SOCKET_MAX_RETRY int = 3
-	WEB_SOCKET_READ_DEADLINE int = 3
+	WEB_SOCKET_STATUS_OK               = "OK"
+	WEB_SOCKET_STATUS_FAIL             = "FAIL"
+	WEB_SOCKET_MAX_RETRY           int = 3
+	WEB_SOCKET_READ_DEADLINE       int = 3
 )
 
 type WebSocketTokenRequest struct {
@@ -37,13 +38,13 @@ func (g *Gubot) serveWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		g.logger.Error("Upgrade:", err)
+		log.Error("Upgrade:", err)
 		return
 	}
-	g.logger.Info("Client '%s' on websocket trying to connect", getRemoteIp(r))
+	log.Info("Client '%s' on websocket trying to connect", getRemoteIp(r))
 	defer func() {
 		ws.Close()
-		g.logger.Info("Client '%s' on websocket disconnected", getRemoteIp(r))
+		log.Info("Client '%s' on websocket disconnected", getRemoteIp(r))
 	}()
 	seq := 1
 	var tokenRequest WebSocketTokenRequest
@@ -54,41 +55,41 @@ func (g *Gubot) serveWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 		ws.WriteJSON(WebSocketRequest{
 			SeqReply: seq,
-			Status: WEB_SOCKET_STATUS_FAIL,
-			Error: err.Error(),
+			Status:   WEB_SOCKET_STATUS_FAIL,
+			Error:    err.Error(),
 		})
 		return
 	}
 	if !g.IsValidToken(tokenRequest.Token) {
 		ws.WriteJSON(WebSocketRequest{
 			SeqReply: seq,
-			Status: WEB_SOCKET_STATUS_FAIL,
-			Error: "Invalid token",
+			Status:   WEB_SOCKET_STATUS_FAIL,
+			Error:    "Invalid token",
 		})
-		g.logger.Info("Client '%s' on websocket use wrong token", getRemoteIp(r))
+		log.Info("Client '%s' on websocket use wrong token", getRemoteIp(r))
 		return
 	}
 	if tokenRequest.Seq != seq {
 		ws.WriteJSON(WebSocketRequest{
 			SeqReply: seq,
-			Status: WEB_SOCKET_STATUS_FAIL,
-			Error: fmt.Sprintf("Invalid seq receive, expected %d got %d", seq, tokenRequest.Seq),
+			Status:   WEB_SOCKET_STATUS_FAIL,
+			Error:    fmt.Sprintf("Invalid seq receive, expected %d got %d", seq, tokenRequest.Seq),
 		})
 		return
 	}
-	g.logger.Info("Client '%s' on websocket is connected", getRemoteIp(r))
+	log.Info("Client '%s' on websocket is connected", getRemoteIp(r))
 	err = ws.WriteJSON(WebSocketRequest{
 		SeqReply: seq,
-		Status: WEB_SOCKET_STATUS_OK,
+		Status:   WEB_SOCKET_STATUS_OK,
 	})
 	if err != nil {
 		if websocket.IsCloseError(err) {
 			return
 		}
-		g.logger.Error("Error when writing ok status after received token.")
+		log.Error("Error when writing ok status after received token.")
 		return
 	}
-	seq ++
+	seq++
 	for event := range g.On("*") {
 		gubotEvent := ToGubotEvent(event)
 		err = sendWebSocketEvent(ws, gubotEvent, seq)
@@ -96,7 +97,7 @@ func (g *Gubot) serveWebSocket(w http.ResponseWriter, r *http.Request) {
 			if websocket.IsCloseError(err) {
 				return
 			}
-			g.logger.Error(err.Error())
+			log.Error(err.Error())
 			return
 		}
 		seq++
@@ -107,8 +108,8 @@ func sendWebSocketEvent(ws *websocket.Conn, gubotEvent GubotEvent, seq int) erro
 	for i := 0; i < WEB_SOCKET_MAX_RETRY; i++ {
 		err = nil
 		err = ws.WriteJSON(WebSocketRequest{
-			Event: gubotEvent,
-			Seq: seq,
+			Event:  gubotEvent,
+			Seq:    seq,
 			Status: WEB_SOCKET_STATUS_OK,
 		})
 		if err != nil {
@@ -130,8 +131,8 @@ func sendWebSocketEvent(ws *websocket.Conn, gubotEvent GubotEvent, seq int) erro
 		if resp.SeqReply != seq {
 			ws.WriteJSON(WebSocketRequest{
 				SeqReply: seq,
-				Status: WEB_SOCKET_STATUS_FAIL,
-				Error: fmt.Sprintf("Invalid seq_reply receive, expected %d got %d", seq, resp.Seq),
+				Status:   WEB_SOCKET_STATUS_FAIL,
+				Error:    fmt.Sprintf("Invalid seq_reply receive, expected %d got %d", seq, resp.Seq),
 			})
 			return nil
 		}

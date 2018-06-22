@@ -1,13 +1,14 @@
 package robot
 
 import (
-	"net/http"
+	"bytes"
 	"encoding/json"
 	"errors"
-	"bytes"
-	"strconv"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
+	"net/http"
+	"strconv"
 )
 
 type HttpError struct {
@@ -30,7 +31,7 @@ func (g *Gubot) registerRemoteScripts(w http.ResponseWriter, req *http.Request) 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		data, _ := json.Marshal(HttpError{
-			Code: http.StatusBadRequest,
+			Code:    http.StatusBadRequest,
 			Message: err.Error(),
 		})
 		w.Write(data)
@@ -40,7 +41,7 @@ func (g *Gubot) registerRemoteScripts(w http.ResponseWriter, req *http.Request) 
 		if TypeScript(script.Type) != Tsend && TypeScript(script.Type) != Trespond {
 			w.WriteHeader(http.StatusBadRequest)
 			data, _ := json.Marshal(HttpError{
-				Code: http.StatusBadRequest,
+				Code:    http.StatusBadRequest,
 				Message: "Invalid type was given, only 'send' and 'respond' type are allowed.",
 			})
 			w.Write(data)
@@ -53,7 +54,7 @@ func (g *Gubot) registerRemoteScripts(w http.ResponseWriter, req *http.Request) 
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			data, _ := json.Marshal(HttpError{
-				Code: http.StatusBadRequest,
+				Code:    http.StatusBadRequest,
 				Message: err.Error(),
 			})
 			w.Write(data)
@@ -69,7 +70,7 @@ func (g *Gubot) registerRemoteScripts(w http.ResponseWriter, req *http.Request) 
 	for _, rmtScript := range tmpScripts {
 		g.Store().Create(&rmtScript)
 		g.RegisterScript(g.remoteScriptToScript(rmtScript))
-		g.logger.Info("Client '%s' on api registered: %s.", getRemoteIp(req), rmtScript.String())
+		log.Info("Client '%s' on api registered: %s.", getRemoteIp(req), rmtScript.String())
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -87,7 +88,7 @@ func (g *Gubot) deleteRemoteScripts(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		data, _ := json.Marshal(HttpError{
-			Code: http.StatusBadRequest,
+			Code:    http.StatusBadRequest,
 			Message: err.Error(),
 		})
 		w.Write(data)
@@ -101,7 +102,7 @@ func (g *Gubot) deleteRemoteScripts(w http.ResponseWriter, req *http.Request) {
 		whereScript.Name = script.Name
 		g.Store().Unscoped().Where(&whereScript).Delete(RemoteScript{})
 		g.UnregisterScript(g.remoteScriptToScript(script))
-		g.logger.Info("Client '%s' on api delete script: %s.", getRemoteIp(req), script.String())
+		log.Info("Client '%s' on api delete script: %s.", getRemoteIp(req), script.String())
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -121,7 +122,7 @@ func (g *Gubot) updateRemoteScripts(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		data, _ := json.Marshal(HttpError{
-			Code: http.StatusBadRequest,
+			Code:    http.StatusBadRequest,
 			Message: err.Error(),
 		})
 		w.Write(data)
@@ -145,7 +146,7 @@ func (g *Gubot) updateRemoteScripts(w http.ResponseWriter, req *http.Request) {
 		whereScript.Name = script.Name
 		g.Store().Where(&whereScript).First(&dbScript)
 		g.UnregisterScript(dbScript.ToScript())
-		g.logger.Info("Client '%s' on api update script: %s.", getRemoteIp(req), dbScript.String())
+		log.Infof("Client '%s' on api update script: %s.", getRemoteIp(req), dbScript.String())
 		dbScript.Matcher = script.Matcher
 		dbScript.Type = script.Type
 		dbScript.Url = script.Url
@@ -169,7 +170,7 @@ func (g *Gubot) envelopeMessagesSend(w http.ResponseWriter, req *http.Request, t
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		data, _ := json.Marshal(HttpError{
-			Code: http.StatusBadRequest,
+			Code:    http.StatusBadRequest,
 			Message: "Invalid json",
 		})
 		w.Write(data)
@@ -183,7 +184,7 @@ func (g *Gubot) envelopeMessagesSend(w http.ResponseWriter, req *http.Request, t
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		data, _ := json.Marshal(HttpError{
-			Code: http.StatusBadRequest,
+			Code:    http.StatusBadRequest,
 			Message: err.Error(),
 		})
 		w.Write(data)

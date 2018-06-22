@@ -231,7 +231,7 @@ for event := range robot.On(robot.EVENT_ROBOT_STARTED) { // you're listening on 
     gubotEvent := robot.ToGubotEvent(event) // this convert to gubot event directly
     err := robot.RespondMessages(gubotEvent.Envelop, "Gubot has started")
     if err != nil {
-        robot.Logger().Error(err)
+        log.Print(err)
     }
 }
 for event := range robot.On("*") { // you're listening on all incoming events
