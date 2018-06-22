@@ -53,7 +53,7 @@ Requirements:
 ### Automatically
 
 1. Create a folder where you will have source for your bot and go inside, e.g.: `mkdir mygubot && cd mygubot`
-2. Run `curl https://raw.githubusercontent.com/ArthurHlt/gubot/master/bin/bootstrap.sh | sh`, it will install bootstrap 
+2. Run `curl https://raw.githubusercontent.com/ArthurHlt/gubot/master/bin/bootstrap.sh | sh`, it will bootstrap 
 a Gubot with an [example](/scripts/example.go) loaded
 3. *(option if target is a cloud environment)* Change the `config_gubot.yml` as you want
 4. you can now run it directly with `go run main.go` or see how to [run in a cloud](#run-in-a-cloud)

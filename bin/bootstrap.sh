@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
-hash glide 2>/dev/null
-if [ "$?" == "1" ]; then
-    curl https://glide.sh/get | sh
-fi
 
-glide create --non-interactive
-glide get --non-interactive github.com/ArthurHlt/gubot/robot
-glide get --non-interactive github.com/ArthurHlt/gubot/adapter
-glide get --non-interactive github.com/ArthurHlt/gubot/scripts
+go get github.com/ArthurHlt/gubot
 
 if hash curl 2>/dev/null; then
     curl https://raw.githubusercontent.com/ArthurHlt/gubot/master/main.go > main.go
