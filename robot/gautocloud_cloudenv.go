@@ -3,10 +3,10 @@ package robot
 import (
 	"github.com/cloudfoundry-community/gautocloud/cloudenv"
 	"github.com/satori/go.uuid"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"os"
 	"path/filepath"
-	"io/ioutil"
-	"gopkg.in/yaml.v2"
 )
 
 const CONFIG_FILENAME = "config_gubot.yml"
@@ -50,7 +50,7 @@ func (c ConfFileCloudEnv) getServicesWithTag(tag string) []cloudenv.Service {
 	}
 	return services
 }
-func (c ConfFileCloudEnv) GetServicesFromTags(tags []string) ([]cloudenv.Service) {
+func (c ConfFileCloudEnv) GetServicesFromTags(tags []string) []cloudenv.Service {
 	if c.isGubotSvcAsked(tags...) {
 		return []cloudenv.Service{{
 			Credentials: c.credentials,
@@ -64,7 +64,7 @@ func (c ConfFileCloudEnv) GetServicesFromTags(tags []string) ([]cloudenv.Service
 }
 func (c ConfFileCloudEnv) isGubotSvcAsked(tagsOrNames ...string) bool {
 	for _, tagOrName := range tagsOrNames {
-		if match(".*" + c.Name() + ".*", tagOrName) {
+		if match(".*"+c.Name()+".*", tagOrName) {
 			return true
 		}
 	}
@@ -108,7 +108,7 @@ func (c *ConfFileCloudEnv) Load() error {
 	}
 	return nil
 }
-func (c ConfFileCloudEnv) GetServicesFromName(name string) ([]cloudenv.Service) {
+func (c ConfFileCloudEnv) GetServicesFromName(name string) []cloudenv.Service {
 	if c.isGubotSvcAsked(name) {
 		return []cloudenv.Service{{
 			Credentials: c.credentials,
@@ -148,8 +148,8 @@ func (c ConfFileCloudEnv) GetAppInfo() cloudenv.AppInfo {
 		c.id = id
 	}
 	return cloudenv.AppInfo{
-		Id: c.id,
-		Name: Name(),
+		Id:         c.id,
+		Name:       Name(),
 		Properties: make(map[string]interface{}),
 	}
 }

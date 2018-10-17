@@ -67,8 +67,16 @@ type Gubot struct {
 
 func NewGubot() *Gubot {
 	cloudenvs := gautocloud.CloudEnvs()
-	cloudenvs = append(cloudenvs, NewConfFileCloudEnv())
-	ldCloud := loader.NewLoader(cloudenvs)
+
+	finalCloudEnvs := make([]cloudenv.CloudEnv, 0)
+	for _, env := range cloudenvs {
+		if _, ok := env.(*cloudenv.LocalCloudEnv); ok {
+			continue
+		}
+		finalCloudEnvs = append(finalCloudEnvs, env)
+	}
+	finalCloudEnvs = append(finalCloudEnvs, NewConfFileCloudEnv())
+	ldCloud := loader.NewLoader(finalCloudEnvs)
 	for _, connector := range gautocloud.Connectors() {
 		ldCloud.RegisterConnector(connector)
 	}
