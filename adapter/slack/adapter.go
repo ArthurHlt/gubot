@@ -24,6 +24,7 @@ type SlackConfig struct {
 	SlackIconUrl       string
 	SlackGubotUsername string
 }
+
 type Notification struct {
 	Text      string      `json:"text"`
 	Username  string      `json:"username"`
@@ -31,6 +32,7 @@ type Notification struct {
 	IconEmoji interface{} `json:"icon_emoji,omitempty"`
 	Channel   interface{} `json:"channel"`
 }
+
 type SlackAdapter struct {
 	config *SlackConfig
 	gubot  *robot.Gubot
@@ -39,6 +41,7 @@ type SlackAdapter struct {
 func NewSlackAdapter() robot.Adapter {
 	return &SlackAdapter{}
 }
+
 func (a SlackAdapter) Send(envelop robot.Envelop, message string) error {
 	notif := a.envelopToNotif(envelop)
 	notif.Text = message
@@ -61,6 +64,7 @@ func (a SlackAdapter) Send(envelop robot.Envelop, message string) error {
 
 	return nil
 }
+
 func (a SlackAdapter) envelopToNotif(envelop robot.Envelop) Notification {
 	username := robot.Name()
 	if a.config.SlackGubotUsername != "" {
@@ -77,15 +81,18 @@ func (a SlackAdapter) envelopToNotif(envelop robot.Envelop) Notification {
 		IconURL:   iconUrl,
 	}
 }
+
 func (a SlackAdapter) Reply(envelop robot.Envelop, message string) error {
 	return a.Send(envelop, "@"+envelop.User.Name+": "+message)
 }
+
 func (a SlackAdapter) getChannel(envelop robot.Envelop) string {
 	if a.config.SlackChannel == "" {
 		return envelop.ChannelName
 	}
 	return a.config.SlackChannel
 }
+
 func (a *SlackAdapter) Run(config interface{}, gubot *robot.Gubot) error {
 	slackConf := config.(*SlackConfig)
 	a.gubot = gubot
@@ -105,6 +112,7 @@ func (a *SlackAdapter) Run(config interface{}, gubot *robot.Gubot) error {
 	gubot.Router().HandleFunc(a.config.SlackEndpoint, a.handler).Methods("POST")
 	return nil
 }
+
 func (a SlackAdapter) handler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	if !a.isValidToken(req.PostForm.Get("token")) {
@@ -129,6 +137,7 @@ func (a SlackAdapter) handler(w http.ResponseWriter, req *http.Request) {
 	a.gubot.Receive(envelop)
 	w.WriteHeader(http.StatusOK)
 }
+
 func (a SlackAdapter) isValidToken(tokenToCheck string) bool {
 	for _, token := range a.config.SlackTokens {
 		if tokenToCheck == token {
@@ -137,9 +146,11 @@ func (a SlackAdapter) isValidToken(tokenToCheck string) bool {
 	}
 	return false
 }
+
 func (a SlackAdapter) Name() string {
 	return "slack"
 }
+
 func (a SlackAdapter) Config() interface{} {
 	return SlackConfig{}
 }

@@ -3,19 +3,20 @@ package robot
 import "fmt"
 
 const (
-	Tsend TypeScript = "send"
+	Tsend    TypeScript = "send"
 	Trespond TypeScript = "respond"
+	Tdirect  TypeScript = "direct"
 )
 
 type Script struct {
-	Name             string `json:"name" gorm:"primary_key"`
-	Description      string `json:"description"`
-	Example          string `json:"example"`
-	Matcher          string `json:"matcher"`
-	TriggerOnMention bool   `json:"trigger_on_mention"`
+	Name             string                                      `json:"name" gorm:"primary_key"`
+	Description      string                                      `json:"description"`
+	Example          string                                      `json:"example"`
+	Matcher          string                                      `json:"matcher"`
+	TriggerOnMention bool                                        `json:"trigger_on_mention"`
 	Function         func(Envelop, [][]string) ([]string, error) `json:"-" gorm:"-"`
-	Sanitizer        func(text string) string `json:"-" gorm:"-"`
-	Type             TypeScript `json:"type" gorm:"-"`
+	Sanitizer        func(text string) string                    `json:"-" gorm:"-"`
+	Type             TypeScript                                  `json:"type" gorm:"-"`
 }
 type TypeScript string
 

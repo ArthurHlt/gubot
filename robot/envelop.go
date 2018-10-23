@@ -10,6 +10,7 @@ type Envelop struct {
 	Properties   map[string]interface{} `json:"properties"`
 	FromReceived bool                   `json:"from_received"`
 }
+
 type UserEnvelop struct {
 	Name        string                 `json:"name"`
 	Id          string                 `json:"id"`

@@ -1,10 +1,10 @@
 package robot
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/url"
-	"io/ioutil"
-	"encoding/json"
 )
 
 func (g Gubot) showScripts(w http.ResponseWriter, req *http.Request) {
@@ -13,6 +13,7 @@ func (g Gubot) showScripts(w http.ResponseWriter, req *http.Request) {
 	data, _ := json.MarshalIndent(g.scripts, "", "\t")
 	w.Write(data)
 }
+
 func (g *Gubot) incoming(w http.ResponseWriter, req *http.Request) {
 	params := req.URL.Query()
 	for keyParam, param := range req.Form {
@@ -28,8 +29,22 @@ func (g *Gubot) incoming(w http.ResponseWriter, req *http.Request) {
 
 	user := UserEnvelop{}
 	user.ChannelName = getParamByRegex("chan.*", params)
-	user.Name = getParamByRegex("(user_name|username|email|mail|user).*", params)
-	user.Id = getParamByRegex("(user_id|userid|user_uuid|useruuid|email|mail|user).*", params)
+	user.Name = getParamByRegex("(user_name|username).*", params)
+	if user.Name == "" {
+		user.Name = getParamByRegex("(email|mail).*", params)
+	}
+	if user.Name == "" {
+		user.Name = getParamByRegex("user.*", params)
+	}
+
+	user.Id = getParamByRegex("(user_id|userid|user_uuid|useruuid).*", params)
+	if user.Id == "" {
+		user.Id = getParamByRegex("(email|mail).*", params)
+	}
+	if user.Id == "" {
+		user.Id = getParamByRegex("user.*", params)
+	}
+
 	envelop.User = user
 	message := getParamByRegex("(mess|msg|text).*", params)
 	if message == "" {
@@ -45,9 +60,10 @@ func (g *Gubot) incoming(w http.ResponseWriter, req *http.Request) {
 	g.Receive(envelop)
 	w.WriteHeader(http.StatusOK)
 }
+
 func getParamByRegex(matcher string, params url.Values) string {
 	for key, values := range params {
-		if match("(?i)" + matcher, key) {
+		if match("(?i)"+matcher, key) {
 			return values[0]
 		}
 	}

@@ -7,3 +7,7 @@ type Adapter interface {
 	Run(interface{}, *Gubot) error
 	Config() interface{}
 }
+
+type SendDirectAdapter interface {
+	SendDirect(Envelop, string) error
+}

@@ -52,6 +52,9 @@ func Receive(envelop Envelop) {
 func SendMessages(envelop Envelop, toSends ...string) error {
 	return robot.SendMessages(envelop, toSends...)
 }
+func SendDirectMessages(envelop Envelop, toSends ...string) error {
+	return robot.SendDirectMessages(envelop, toSends...)
+}
 func RespondMessages(envelop Envelop, toReplies ...string) error {
 	return robot.RespondMessages(envelop, toReplies...)
 }

@@ -41,6 +41,7 @@ const (
 	EVENT_ROBOT_RECEIVED          EventAction = "received"
 	EVENT_ROBOT_SEND              EventAction = "send"
 	EVENT_ROBOT_RESPOND           EventAction = "respond"
+	EVENT_ROBOT_NO_SCRIPT_FOUND   EventAction = "no_script_found"
 )
 
 type EventAction string
@@ -95,6 +96,7 @@ func NewGubot() *Gubot {
 	gubot.gautocloud.RegisterConnector(NewGubotGenericConnector(GubotConfig{}))
 	return gubot
 }
+
 func (g *Gubot) createHttpClient() {
 	tr := &http.Transport{
 		Proxy:           http.ProxyFromEnvironment,
@@ -102,6 +104,7 @@ func (g *Gubot) createHttpClient() {
 	}
 	g.httpClient.Transport = tr
 }
+
 func (g *Gubot) registerUser(envelop Envelop) {
 	if envelop.User.Id == "" {
 		return
@@ -120,15 +123,19 @@ func (g *Gubot) registerUser(envelop Envelop) {
 		g.store.Create(dbUser)
 	}
 }
+
 func (g Gubot) Emit(event GubotEvent) {
 	<-g.GubotEmitter.Emit(string(event.Name), event)
 }
+
 func (g Gubot) On(eventAction EventAction, middlewares ...func(*emitter.Event)) <-chan emitter.Event {
 	return g.GubotEmitter.On(string(eventAction), middlewares...)
 }
+
 func (g Gubot) Once(eventAction EventAction, middlewares ...func(*emitter.Event)) <-chan emitter.Event {
 	return g.GubotEmitter.Once(string(eventAction), middlewares...)
 }
+
 func (g Gubot) Emitter() *emitter.Emitter {
 	return g.GubotEmitter
 }
@@ -140,23 +147,29 @@ func (g *Gubot) SetLogLevel(level string) {
 	}
 	log.SetLevel(lvl)
 }
+
 func (g Gubot) Name() string {
 	return g.name
 }
+
 func (g *Gubot) SetName(name string) {
 	g.name = name
 }
+
 func (g *Gubot) SkipInsecure() {
 	g.skipInsecure = true
 	g.createHttpClient()
 }
+
 func (g Gubot) HttpClient() *http.Client {
 	return g.httpClient
 }
+
 func (g *Gubot) RegisterAdapter(adp Adapter) {
 	g.adapters = append(g.adapters, adp)
 	g.gautocloud.RegisterConnector(NewGubotGenericConnector(adp.Config()))
 }
+
 func (g *Gubot) runAdapters() {
 	for _, adp := range g.adapters {
 		val := reflect.New(reflect.TypeOf(adp.Config()))
@@ -180,6 +193,7 @@ func (g Gubot) GetConfig(config interface{}) error {
 	g.gautocloud.RegisterConnector(NewGubotGenericConnector(v.Elem().Interface()))
 	return g.gautocloud.Inject(config)
 }
+
 func (g *Gubot) RegisterScript(script Script) error {
 	defer g.mutex.Unlock()
 	g.mutex.Lock()
@@ -197,6 +211,7 @@ func (g *Gubot) RegisterScript(script Script) error {
 	log.Debugf("%s registered.", script.String())
 	return nil
 }
+
 func (g *Gubot) RegisterScripts(scripts []Script) error {
 	for _, script := range scripts {
 		err := g.RegisterScript(script)
@@ -206,6 +221,7 @@ func (g *Gubot) RegisterScripts(scripts []Script) error {
 	}
 	return nil
 }
+
 func (g *Gubot) UnregisterScript(script Script) error {
 	defer g.mutex.Unlock()
 	g.mutex.Lock()
@@ -223,6 +239,7 @@ func (g *Gubot) UnregisterScript(script Script) error {
 	log.Debugf("%s unregistered.", script.String())
 	return nil
 }
+
 func (g *Gubot) UnregisterScripts(scripts []Script) error {
 	for _, script := range scripts {
 		err := g.UnregisterScript(script)
@@ -232,6 +249,7 @@ func (g *Gubot) UnregisterScripts(scripts []Script) error {
 	}
 	return nil
 }
+
 func (g *Gubot) UpdateScript(script Script) error {
 	defer g.mutex.Unlock()
 	g.mutex.Lock()
@@ -249,6 +267,7 @@ func (g *Gubot) UpdateScript(script Script) error {
 	log.Debugf("%s updated.", script.String())
 	return nil
 }
+
 func (g *Gubot) UpdateScripts(scripts []Script) error {
 	for _, script := range scripts {
 		err := g.UpdateScript(script)
@@ -258,6 +277,7 @@ func (g *Gubot) UpdateScripts(scripts []Script) error {
 	}
 	return nil
 }
+
 func (g Gubot) checkScript(script Script) error {
 	if script.Function == nil || script.Matcher == "" || script.Type == "" ||
 		script.Name == "" {
@@ -265,6 +285,7 @@ func (g Gubot) checkScript(script Script) error {
 	}
 	return nil
 }
+
 func (g *Gubot) findScriptIndex(findScript Script) int {
 	for index, script := range *g.scripts {
 		if script.Name == findScript.Name &&
@@ -279,6 +300,7 @@ func (g *Gubot) findScriptIndex(findScript Script) int {
 func (g Gubot) Store() *gorm.DB {
 	return g.store
 }
+
 func (g *Gubot) Receive(envelop Envelop) {
 	envelop.FromReceived = true
 	log.Debugf("Received envelop=%v", envelop)
@@ -289,6 +311,14 @@ func (g *Gubot) Receive(envelop Envelop) {
 	g.registerUser(envelop)
 	toSends := g.getMessages(envelop, Tsend)
 	toReplies := g.getMessages(envelop, Trespond)
+	toDirect := g.getMessages(envelop, Tdirect)
+
+	if len(toSends) == 0 && len(toReplies) == 0 && len(toSends) == 0 {
+		g.Emit(GubotEvent{
+			Name:    EVENT_ROBOT_NO_SCRIPT_FOUND,
+			Envelop: envelop,
+		})
+	}
 
 	err := g.SendMessages(envelop, toSends...)
 	if err != nil {
@@ -298,7 +328,12 @@ func (g *Gubot) Receive(envelop Envelop) {
 	if err != nil {
 		log.Error("Error when replying messages: " + err.Error())
 	}
+	err = g.SendDirectMessages(envelop, toDirect...)
+	if err != nil {
+		log.Error("Error when sending direct messages: " + err.Error())
+	}
 }
+
 func (g *Gubot) SendMessages(envelop Envelop, toSends ...string) error {
 	for _, adp := range g.adapters {
 		log.Debugf("Adapter '%s' chose a random message from list [\"%s\"] and sent it.",
@@ -313,6 +348,26 @@ func (g *Gubot) SendMessages(envelop Envelop, toSends ...string) error {
 	}
 	return nil
 }
+
+func (g *Gubot) SendDirectMessages(envelop Envelop, toReplies ...string) error {
+	for _, adp := range g.adapters {
+		log.Debugf("Adapter '%s' chose a random message from list [\"%s\"] and reply to user.",
+			adp.Name(),
+			strings.Join(toReplies, "\", \""),
+		)
+		var reply func(Envelop, string) error
+		reply = adp.Reply
+		if _, ok := adp.(SendDirectAdapter); ok {
+			reply = adp.(SendDirectAdapter).SendDirect
+		}
+		err := g.sendingEnvelop(envelop, reply, EVENT_ROBOT_RESPOND, toReplies)
+		if err != nil {
+			log.Error("Error when responding on adapter '" + adp.Name() + "' : " + err.Error())
+		}
+	}
+	return nil
+}
+
 func (g *Gubot) RespondMessages(envelop Envelop, toReplies ...string) error {
 	if len(toReplies) > 0 && envelop.User.Name == "" {
 		return errors.New("You must provide a user name in envelop")
@@ -329,6 +384,7 @@ func (g *Gubot) RespondMessages(envelop Envelop, toReplies ...string) error {
 	}
 	return nil
 }
+
 func (g Gubot) choseRandomMessage(messages []string) string {
 	if len(messages) == 0 {
 		return ""
@@ -338,6 +394,7 @@ func (g Gubot) choseRandomMessage(messages []string) string {
 	}
 	return messages[rand.Intn(len(messages))]
 }
+
 func (g *Gubot) sendingEnvelop(envelop Envelop, adpFn func(Envelop, string) error, eventAction EventAction, messages []string) error {
 	if len(messages) == 0 {
 		return nil
@@ -358,6 +415,7 @@ func (g *Gubot) sendingEnvelop(envelop Envelop, adpFn func(Envelop, string) erro
 	})
 	return adpFn(envelop, message)
 }
+
 func (g *Gubot) LoadStore() error {
 	var store *gorm.DB
 	err := g.gautocloud.Inject(&store)
@@ -379,9 +437,11 @@ func (g *Gubot) LoadStore() error {
 	g.store = store
 	return nil
 }
+
 func (g Gubot) Host() string {
 	return g.host
 }
+
 func (g *Gubot) loadHost() {
 	if g.host != "" {
 		return
@@ -399,6 +459,7 @@ func (g *Gubot) loadHost() {
 		g.host = "http" + g.host
 	}
 }
+
 func (g Gubot) InitDefaultRoute() {
 	g.router.Handle("/", g.ApiAuthMatcher()(http.HandlerFunc(g.incoming))).Methods("POST")
 	g.router.Handle("/", http.HandlerFunc(g.showScripts)).Methods("GET")
@@ -428,6 +489,7 @@ func (g *Gubot) ApiAuthMatcher() func(http.Handler) http.Handler {
 	}
 	return fn
 }
+
 func (g Gubot) IsSecured(w http.ResponseWriter, req *http.Request) bool {
 	auth := false
 	req.ParseForm()
@@ -449,6 +511,7 @@ func (g Gubot) IsSecured(w http.ResponseWriter, req *http.Request) bool {
 
 	return auth
 }
+
 func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 	toSends := make([]string, 0)
 	g.mutex.Lock()
@@ -472,23 +535,29 @@ func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 	}
 	return toSends
 }
+
 func match(matcher, content string) bool {
 	regex := regexp.MustCompile(matcher)
 	return regex.MatchString(content)
 }
+
 func allSubMatch(matcher, content string) [][]string {
 	regex := regexp.MustCompile(matcher)
 	return regex.FindAllStringSubmatch(content, -1)
 }
+
 func (g Gubot) Router() *mux.Router {
 	return g.router
 }
+
 func (g *Gubot) SetTokens(tokens []string) {
 	g.tokens = tokens
 }
+
 func (g Gubot) Tokens() []string {
 	return g.tokens
 }
+
 func (g Gubot) IsValidToken(tokenToCheck string) bool {
 	for _, token := range g.tokens {
 		if tokenToCheck == token {
@@ -497,9 +566,11 @@ func (g Gubot) IsValidToken(tokenToCheck string) bool {
 	}
 	return false
 }
+
 func (g Gubot) GetScripts() []Script {
 	return []Script(*g.scripts)
 }
+
 func (g *Gubot) InitializeHelp() {
 	g.RegisterScript(Script{
 		Name:        "help",
@@ -531,13 +602,14 @@ func (g *Gubot) InitializeHelp() {
 				}
 				list += "\n"
 			}
-			list += "`*`: Script will be only trigered when talking explicitly to the bot."
+			list += "`*`: Script will be only triggered when talking explicitly to the bot."
 			return []string{list}, nil
 		},
 		TriggerOnMention: true,
 		Type:             Tsend,
 	})
 }
+
 func (g *Gubot) Start(addr string) error {
 	defer g.GubotEmitter.Off("*")
 	var conf GubotConfig

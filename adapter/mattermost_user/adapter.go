@@ -37,20 +37,24 @@ type PostData struct {
 	Hashtags      string    `json:"hashtags"`
 	PendingPostID string    `json:"pending_post_id"`
 }
+
 type PropsData struct {
 	FromWebhook      string `json:"from_webhook"`
 	OverrideUsername string `json:"override_username"`
 }
+
 type MattermostUserConfig struct {
 	MattermostUsername            string
+	MattermostUserID              string
 	MattermostPassword            string
 	MattermostApi                 string
 	MattermostChannels            []string
-	MattermostTickStatusInSeconds int `cloud:",default=30"`
+	MattermostTickStatusInSeconds int `cloud-default:"30"`
 }
+
 type MattermostUserAdapter struct {
 	clientWs    *model.WebSocketClient
-	client      *model.Client
+	client      *model.Client4
 	gubot       *robot.Gubot
 	mutex       *sync.Mutex
 	onlineUsers map[string]interface{}
@@ -63,106 +67,103 @@ func NewMattermostUserAdapter() robot.Adapter {
 		mutex:       new(sync.Mutex),
 	}
 }
+
 func (a MattermostUserAdapter) Send(envelop robot.Envelop, message string) error {
 	if envelop.ChannelName == "" && envelop.ChannelId == "" {
 		return errors.New("You must provide a channel name or channel id in envelop")
 	}
-	var teamId string
 	var err error
 	channelId := envelop.ChannelId
 	if channelId == "" {
-		teamId, channelId, err = a.getTeamIdAndChannelIdByChannelName(envelop.ChannelName)
+		_, channelId, err = a.getTeamIdAndChannelIdByChannelName(envelop.ChannelName)
 		if err != nil {
 			return err
 		}
 	}
-	if _, ok := envelop.Properties["team_id"]; ok && envelop.Properties["team_id"].(string) != "" {
-		teamId = envelop.Properties["team_id"].(string)
-	}
-	if teamId == "" {
-		teamId, err = a.getTeamIdByChannelId(channelId)
-		if err != nil {
-			return err
-		}
-	}
-	post := &model.Post{
+	_, resp := a.client.CreatePost(&model.Post{
 		ChannelId: channelId,
 		Message:   message,
+	})
+	if resp.Error != nil {
+		return resp.Error
 	}
-	route := fmt.Sprintf("/teams/%v/channels/%v", teamId, channelId)
-	if r, err := a.client.DoApiPost(route+"/posts/create", post.ToJson()); err != nil {
-		return err
-	} else {
-		closeBody(r)
-	}
-
 	return nil
 }
-func (a MattermostUserAdapter) getTeamIdByChannelId(channelId string) (string, error) {
-	result, appErr := a.client.GetAllTeams()
-	if appErr != nil {
-		return "", appErr
+
+func (a MattermostUserAdapter) SendDirect(envelop robot.Envelop, message string) error {
+	channel, resp := a.client.CreateDirectChannel(a.me.Id, envelop.User.Id)
+	if resp.Error != nil {
+		return resp.Error
 	}
-	teams := result.Data.(map[string]*model.Team)
-	for teamId, _ := range teams {
-		_, appErr := a.GetChannelById(teamId, channelId)
-		if appErr != nil {
-			log.Error(appErr.Error())
-			continue
-		}
-		return teamId, nil
+	_, resp = a.client.CreatePost(&model.Post{
+		ChannelId: channel.Id,
+		Message:   message,
+	})
+	if resp.Error != nil {
+		return resp.Error
 	}
-	return "", errors.New("Team id not found " + channelId)
+	return nil
 }
-func (a MattermostUserAdapter) getTeamIdAndChannelIdByChannelName(channelName string) (string, string, error) {
-	result, appErr := a.client.GetAllTeams()
-	if appErr != nil {
-		return "", "", appErr
+
+func (a MattermostUserAdapter) getTeamIdByChannelId(channelId string) (string, error) {
+	channel, resp := a.client.GetChannel(channelId, "")
+	if resp.Error != nil {
+		return "", resp.Error
 	}
-	teams := result.Data.(map[string]*model.Team)
-	for teamId, _ := range teams {
-		channel, appErr := a.GetChannelByName(teamId, channelName)
-		if appErr != nil || channel.Data.(*model.Channel).Name != channelName {
+	return channel.TeamId, nil
+}
+
+func (a MattermostUserAdapter) getTeamIdAndChannelIdByChannelName(channelName string) (string, string, error) {
+	teams, resp := a.client.GetAllTeams("", 0, 120)
+	if resp.Error != nil {
+		return "", "", resp.Error
+	}
+	for _, team := range teams {
+		channel, appErr := a.GetChannelByName(team.Id, channelName)
+		if appErr != nil || channel.Name != channelName {
 			continue
 		}
-		return teamId, channel.Data.(*model.Channel).Id, nil
+		return channel.TeamId, channel.Id, nil
 	}
 	return "", "", errors.New("Team id not found")
 }
-func (a MattermostUserAdapter) GetChannelById(teamId, channelId string) (*model.Result, *model.AppError) {
+
+func (a MattermostUserAdapter) GetChannelById(teamId, channelId string) (*model.Channel, *model.AppError) {
 	route := fmt.Sprintf("/teams/%v/channels/%v/", teamId, channelId)
-	if r, err := a.client.DoApiGet(route, "", ""); err != nil {
+	if r, err := a.client.DoApiGet(route, ""); err != nil {
 		return nil, err
 	} else {
 		defer closeBody(r)
-		return &model.Result{r.Header.Get(model.HEADER_REQUEST_ID),
-			r.Header.Get(model.HEADER_ETAG_SERVER), model.ChannelFromJson(r.Body)}, nil
+		return model.ChannelFromJson(r.Body), nil
 	}
 }
-func (a MattermostUserAdapter) GetChannelByName(teamId, channelName string) (*model.Result, *model.AppError) {
+
+func (a MattermostUserAdapter) GetChannelByName(teamId, channelName string) (*model.Channel, *model.AppError) {
 	route := fmt.Sprintf("/teams/%v/channels/name/%v", teamId, channelName)
-	if r, err := a.client.DoApiGet(route, "", ""); err != nil {
+	if r, err := a.client.DoApiGet(route, ""); err != nil {
 		return nil, err
 	} else {
 		defer closeBody(r)
-		return &model.Result{r.Header.Get(model.HEADER_REQUEST_ID),
-			r.Header.Get(model.HEADER_ETAG_SERVER), model.ChannelFromJson(r.Body)}, nil
+		return model.ChannelFromJson(r.Body), nil
 	}
 }
+
 func closeBody(r *http.Response) {
 	if r.Body != nil {
 		ioutil.ReadAll(r.Body)
 		r.Body.Close()
 	}
 }
+
 func (a MattermostUserAdapter) Reply(envelop robot.Envelop, message string) error {
 	return a.Send(envelop, "@"+envelop.User.Name+": "+message)
 }
+
 func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) error {
 	conf := config.(*MattermostUserConfig)
 	a.gubot = gubot
-	if conf.MattermostUsername == "" {
-		return errors.New("mattermost_username config param is required")
+	if conf.MattermostUsername == "" && conf.MattermostUserID == "" {
+		return errors.New("mattermost_username or mattermost_user_id config param is required")
 	}
 	if conf.MattermostPassword == "" {
 		return errors.New("mattermost_password config param is required")
@@ -184,11 +185,17 @@ func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) erro
 		mattApi.Scheme = "http"
 		wsMattApi.Scheme = "ws"
 	}
-	client := model.NewClient(mattApi.String())
+	client := model.NewAPIv4Client(mattApi.String())
 	client.HttpClient = gubot.HttpClient()
-	_, appErr := client.Login(conf.MattermostUsername, conf.MattermostPassword)
-	if appErr != nil {
-		return appErr
+	var resp *model.Response
+	if conf.MattermostUsername != "" {
+		_, resp = client.Login(conf.MattermostUsername, conf.MattermostPassword)
+	} else {
+		_, resp = client.LoginById(conf.MattermostUserID, conf.MattermostPassword)
+	}
+
+	if resp.Error != nil {
+		return resp.Error
 	}
 	a.client = client
 	websocket.DefaultDialer.TLSClientConfig = &tls.Config{
@@ -200,11 +207,10 @@ func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) erro
 	}
 	a.clientWs = clientWs
 
-	resp, appErr := client.GetMe("")
-	if appErr != nil {
-		return appErr
+	mattMe, resp := client.GetMe("")
+	if resp.Error != nil {
+		return resp.Error
 	}
-	mattMe := resp.Data.(*model.User)
 	a.me = mattMe
 	clientWs.Listen()
 	go func() {
@@ -261,6 +267,7 @@ func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) erro
 	}()
 	return nil
 }
+
 func (a *MattermostUserAdapter) emitStatusChange() {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -289,13 +296,13 @@ func (a *MattermostUserAdapter) emitStatusChange() {
 	}
 	a.onlineUsers = onlineUsersReceived
 }
+
 func (a MattermostUserAdapter) userIdToDirectEnvelop(userId string) robot.Envelop {
-	resp, appErr := a.client.GetUser(userId, "")
-	if appErr != nil {
+	user, resp := a.client.GetUser(userId, "")
+	if resp.Error != nil {
 		log.Error("Cannot transform event in envelop")
 		return robot.Envelop{}
 	}
-	user := resp.Data.(*model.User)
 	userEnvelop := robot.UserEnvelop{}
 	envelop := robot.Envelop{}
 	userName := user.Username
@@ -311,15 +318,15 @@ func (a MattermostUserAdapter) userIdToDirectEnvelop(userId string) robot.Envelo
 	envelop.User = userEnvelop
 	return envelop
 }
+
 func (a MattermostUserAdapter) eventToEnvelop(event *model.WebSocketEvent) robot.Envelop {
 	userId := event.Data["user_id"].(string)
 	channelId := event.Broadcast.ChannelId
-	resp, appErr := a.client.GetUser(userId, "")
-	if appErr != nil {
+	user, resp := a.client.GetUser(userId, "")
+	if resp.Error != nil {
 		log.Error("Cannot transform event in envelop")
 		return robot.Envelop{}
 	}
-	user := resp.Data.(*model.User)
 	userEnvelop := robot.UserEnvelop{}
 	envelop := robot.Envelop{}
 	userName := user.Username
@@ -336,6 +343,7 @@ func (a MattermostUserAdapter) eventToEnvelop(event *model.WebSocketEvent) robot
 	envelop.User = userEnvelop
 	return envelop
 }
+
 func (a MattermostUserAdapter) sendingEnvelop(event *model.WebSocketEvent, mattMe *model.User) {
 
 	channelName := event.Data["channel_name"].(string)
@@ -371,13 +379,26 @@ func (a MattermostUserAdapter) sendingEnvelop(event *model.WebSocketEvent, mattM
 	envelop.User = user
 	mentioned := a.isMentioned(event)
 	envelop.NotMentioned = !mentioned
+
+	mentionKeys := []string{
+		a.me.Nickname,
+		a.me.Username,
+		a.me.FirstName,
+	}
+	if rawMenKeys, ok := a.me.NotifyProps["mention_keys"]; ok {
+		mentionKeys = append(mentionKeys, strings.Split(rawMenKeys, ",")...)
+	}
+
 	if mentioned {
-		envelop.Message = strings.Replace(envelop.Message, "@"+a.me.Username, "", -1)
-		envelop.Message = strings.Replace(envelop.Message, a.me.Username, "", -1)
+		for _, mentionKey := range mentionKeys {
+			envelop.Message = strings.Replace(envelop.Message, "@"+mentionKey, "", -1)
+			envelop.Message = strings.Replace(envelop.Message, mentionKey, "", -1)
+		}
 		envelop.Message = strings.TrimSpace(envelop.Message)
 	}
 	a.gubot.Receive(envelop)
 }
+
 func (a MattermostUserAdapter) isMentioned(event *model.WebSocketEvent) bool {
 	if event.Data["channel_type"].(string) == "D" {
 		return true
@@ -398,9 +419,11 @@ func (a MattermostUserAdapter) isMentioned(event *model.WebSocketEvent) bool {
 	}
 	return false
 }
+
 func (a MattermostUserAdapter) Name() string {
 	return "mattermost user"
 }
+
 func (a MattermostUserAdapter) Config() interface{} {
 	return MattermostUserConfig{}
 }

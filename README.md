@@ -201,7 +201,10 @@ func init(){
     			Function: func(envelop robot.Envelop, subMatch [][]string) ([]string, error) {
                           	return []string{"Badgers? BADGERS? WE DON'T NEED NO STINKIN BADGERS"}, nil
                           },
-    			Type: robot.Tsend, // robot.Tsend to send without responding to user and robot.Trespond to respond to a user
+                // robot.Tsend to send without responding to user
+                // robot.Trespond to respond to a user
+                // robot.Tdirect to send message as private message adapter which not implement direct message will act like Trespond (only adapter mattermost_user can do that)
+    			Type: robot.Tsend,
     		},
     })
 }
@@ -212,7 +215,7 @@ func init(){
 You can listen events from Gubot such as:
 - `initialized_store`: When Gubot finished to initialize store
 - `initialized`: When Gubot finished to initialize
-- `started`: When Gubot as really started
+- `started`: When Gubot has really started
 - `channel_enter`*: When a user enter in a channel
 - `channel_leave`*: When a user leave a channel
 - `user_online`: When a user is connected to the chat 
@@ -220,6 +223,7 @@ You can listen events from Gubot such as:
 - `received`: When Gubot received an envelop
 - `send`: When Gubot received an order to send message to adapter(s)
 - `respond`: When Gubot received an order to send message by responding to user to adapter(s)
+- `no_script_found`: When Gubot receive a message but no script is matching the message.
 
 `*`: This must be adapter which sent this event, only mattermost_user in default adapter implements this.
 
@@ -383,7 +387,7 @@ It give the ability to use different language than golang to add scripts but als
 {
 	"name": "", //required, name of the script
 	"matcher": "", //required
-	"type": "", //required: respond or send
+	"type": "", //required: respond, send or direct
 	"url": "", //required, url of your remote script to send envelop
 	"description": "",
 	"example": "",
@@ -459,7 +463,7 @@ curl -XPUT -H 'Authorization: atokenregisteredingubot' -H "Content-type: applica
   {
 	"name": "", //required, name of the script which was registered
 	"matcher": "", //required
-	"type": "", //required: respond or send
+	"type": "", //required: respond, send or direct
 	"url": "", //required, url of your remote script to send envelop
 	"description": "",
 	"example": "",
@@ -468,7 +472,7 @@ curl -XPUT -H 'Authorization: atokenregisteredingubot' -H "Content-type: applica
   {
   	"name": "", //required, name of the script which was registered
   	"matcher": "", //required
-  	"type": "", //required: respond or send
+  	"type": "", //required: respond, send or direct
   	"url": "", //required, url of your remote script to send envelop
   	"description": "",
   	"example": "",
@@ -631,5 +635,5 @@ Here the expected a message to send back to server:
 }
 ```
 
-You can take a look to the go implementation of the websocket client availble on 
+You can take a look to the go implementation of the websocket client available on 
 [/helper/websocket_client.go](/helper/websocket_client.go) to write your own.

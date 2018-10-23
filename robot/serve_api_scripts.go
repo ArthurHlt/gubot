@@ -38,11 +38,11 @@ func (g *Gubot) registerRemoteScripts(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 	for _, script := range tmpScripts {
-		if TypeScript(script.Type) != Tsend && TypeScript(script.Type) != Trespond {
+		if TypeScript(script.Type) != Tsend && TypeScript(script.Type) != Trespond && TypeScript(script.Type) != Tdirect {
 			w.WriteHeader(http.StatusBadRequest)
 			data, _ := json.Marshal(HttpError{
 				Code:    http.StatusBadRequest,
-				Message: "Invalid type was given, only 'send' and 'respond' type are allowed.",
+				Message: "Invalid type was given, only 'send', 'respond' or 'direct' type are allowed.",
 			})
 			w.Write(data)
 			return

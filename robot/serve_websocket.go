@@ -21,6 +21,7 @@ type WebSocketTokenRequest struct {
 	WebSocketRequest
 	Token string `json:"token"`
 }
+
 type WebSocketRequest struct {
 	Event    GubotEvent `json:"event,omitempty"`
 	Status   string     `json:"status"`
@@ -103,6 +104,7 @@ func (g *Gubot) serveWebSocket(w http.ResponseWriter, r *http.Request) {
 		seq++
 	}
 }
+
 func sendWebSocketEvent(ws *websocket.Conn, gubotEvent GubotEvent, seq int) error {
 	var err error
 	for i := 0; i < WEB_SOCKET_MAX_RETRY; i++ {
@@ -146,9 +148,11 @@ func sendWebSocketEvent(ws *websocket.Conn, gubotEvent GubotEvent, seq int) erro
 	}
 	return nil
 }
+
 func (w WebSocketRequest) IsInError() bool {
 	return w.Status == WEB_SOCKET_STATUS_FAIL && w.Error != ""
 }
+
 func (w WebSocketRequest) IsValid() bool {
 	return w.Error != "" || w.Event.Name != ""
 }
