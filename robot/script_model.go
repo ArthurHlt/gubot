@@ -8,16 +8,21 @@ const (
 	Tdirect  TypeScript = "direct"
 )
 
+type Middleware func(script Script, next EnvelopHandler) EnvelopHandler
+
+type EnvelopHandler func(Envelop, [][]string) ([]string, error)
+
 type Script struct {
-	Name             string                                      `json:"name" gorm:"primary_key"`
-	Description      string                                      `json:"description"`
-	Example          string                                      `json:"example"`
-	Matcher          string                                      `json:"matcher"`
-	TriggerOnMention bool                                        `json:"trigger_on_mention"`
-	Function         func(Envelop, [][]string) ([]string, error) `json:"-" gorm:"-"`
-	Sanitizer        func(text string) string                    `json:"-" gorm:"-"`
-	Type             TypeScript                                  `json:"type" gorm:"-"`
+	Name             string                   `json:"name" gorm:"primary_key"`
+	Description      string                   `json:"description"`
+	Example          string                   `json:"example"`
+	Matcher          string                   `json:"matcher"`
+	TriggerOnMention bool                     `json:"trigger_on_mention"`
+	Function         EnvelopHandler           `json:"-" gorm:"-"`
+	Sanitizer        func(text string) string `json:"-" gorm:"-"`
+	Type             TypeScript               `json:"type" gorm:"-"`
 }
+
 type TypeScript string
 
 type Scripts []Script

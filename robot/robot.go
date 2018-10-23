@@ -30,6 +30,7 @@ const (
 	icon_route          = "/static_compiled/gubot_icon.png"
 	REMOTE_SCRIPTS_NAME = "remote_scripts"
 )
+
 const (
 	EVENT_ROBOT_STARTED           EventAction = "started"
 	EVENT_ROBOT_CHANNEL_ENTER     EventAction = "channel_enter"
@@ -64,6 +65,7 @@ type Gubot struct {
 	store        *gorm.DB
 	scripts      *Scripts
 	mutex        *sync.Mutex
+	middlewares  []Middleware
 }
 
 func NewGubot() *Gubot {
@@ -92,6 +94,7 @@ func NewGubot() *Gubot {
 		httpClient:   &http.Client{},
 		scripts:      &scripts,
 		mutex:        new(sync.Mutex),
+		middlewares:  make([]Middleware, 0),
 	}
 	gubot.gautocloud.RegisterConnector(NewGubotGenericConnector(GubotConfig{}))
 	return gubot
@@ -192,6 +195,10 @@ func (g Gubot) GetConfig(config interface{}) error {
 	}
 	g.gautocloud.RegisterConnector(NewGubotGenericConnector(v.Elem().Interface()))
 	return g.gautocloud.Inject(config)
+}
+
+func (g *Gubot) Use(middlewares ...Middleware) {
+	g.middlewares = append(g.middlewares, middlewares...)
 }
 
 func (g *Gubot) RegisterScript(script Script) error {
@@ -526,7 +533,8 @@ func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 			continue
 		}
 		log.Debug("%s respond on envelop=%v", script.String(), envelop)
-		messages, err := script.Function(envelop, allSubMatch(script.Matcher, message))
+		function := g.generateFunction(script, script.Function)
+		messages, err := function(envelop, allSubMatch(script.Matcher, message))
 		if err != nil {
 			log.Error(fmt.Sprintf("Error on script '%s': %s", script.Name, err.Error()))
 			continue
@@ -534,6 +542,14 @@ func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 		toSends = append(toSends, messages...)
 	}
 	return toSends
+}
+
+func (g Gubot) generateFunction(script Script, handler EnvelopHandler) EnvelopHandler {
+	for i := len(g.middlewares) - 1; i >= 0; i-- {
+		middleware := g.middlewares[i]
+		handler = middleware(script, handler)
+	}
+	return handler
 }
 
 func match(matcher, content string) bool {

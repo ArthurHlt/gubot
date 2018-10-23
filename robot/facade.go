@@ -39,7 +39,9 @@ func HttpClient() *http.Client {
 func RegisterAdapter(adp Adapter) {
 	robot.RegisterAdapter(adp)
 }
-
+func Use(middlewares ...Middleware) {
+	robot.Use(middlewares...)
+}
 func GetConfig(config interface{}) error {
 	return robot.GetConfig(config)
 }
