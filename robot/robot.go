@@ -10,6 +10,7 @@ import (
 	_ "github.com/cloudfoundry-community/gautocloud/connectors/databases/gorm"
 	"github.com/cloudfoundry-community/gautocloud/loader"
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/olebedev/emitter"
@@ -53,19 +54,22 @@ type GubotEvent struct {
 }
 
 type Gubot struct {
-	GubotEmitter *emitter.Emitter
-	name         string
-	host         string
-	adapters     []Adapter
-	router       *mux.Router
-	tokens       []string
-	skipInsecure bool
-	httpClient   *http.Client
-	gautocloud   loader.Loader
-	store        *gorm.DB
-	scripts      *Scripts
-	mutex        *sync.Mutex
-	middlewares  []Middleware
+	GubotEmitter       *emitter.Emitter
+	name               string
+	host               string
+	adapters           []Adapter
+	router             *mux.Router
+	tokens             []string
+	skipInsecure       bool
+	httpClient         *http.Client
+	gautocloud         loader.Loader
+	store              *gorm.DB
+	scripts            *Scripts
+	slashCommands      *[]SlashCommand
+	mutexScript        *sync.Mutex
+	mutexSlashCommand  *sync.Mutex
+	scriptMiddlewares  []ScriptMiddleware
+	commandMiddlewares []CommandMiddleware
 }
 
 func NewGubot() *Gubot {
@@ -84,17 +88,21 @@ func NewGubot() *Gubot {
 		ldCloud.RegisterConnector(connector)
 	}
 	scripts := Scripts(make([]Script, 0))
+	slashCommands := make([]SlashCommand, 0)
 	gubot := &Gubot{
-		GubotEmitter: emitter.New(uint(100)),
-		name:         "gubot",
-		adapters:     make([]Adapter, 0),
-		router:       mux.NewRouter(),
-		tokens:       make([]string, 0),
-		gautocloud:   ldCloud,
-		httpClient:   &http.Client{},
-		scripts:      &scripts,
-		mutex:        new(sync.Mutex),
-		middlewares:  make([]Middleware, 0),
+		GubotEmitter:       emitter.New(uint(100)),
+		name:               "gubot",
+		adapters:           make([]Adapter, 0),
+		router:             mux.NewRouter(),
+		tokens:             make([]string, 0),
+		gautocloud:         ldCloud,
+		httpClient:         &http.Client{},
+		scripts:            &scripts,
+		mutexScript:        new(sync.Mutex),
+		mutexSlashCommand:  new(sync.Mutex),
+		scriptMiddlewares:  make([]ScriptMiddleware, 0),
+		commandMiddlewares: make([]CommandMiddleware, 0),
+		slashCommands:      &slashCommands,
 	}
 	gubot.gautocloud.RegisterConnector(NewGubotGenericConnector(GubotConfig{}))
 	return gubot
@@ -198,12 +206,104 @@ func (g Gubot) GetConfig(config interface{}) error {
 }
 
 func (g *Gubot) Use(middlewares ...Middleware) {
-	g.middlewares = append(g.middlewares, middlewares...)
+	for _, mid := range middlewares {
+		g.scriptMiddlewares = append(g.scriptMiddlewares, mid.ScriptMiddleware)
+		g.commandMiddlewares = append(g.commandMiddlewares, mid.CommandMiddleware)
+	}
+}
+
+func (g *Gubot) UseScript(middlewares ...ScriptMiddleware) {
+	g.scriptMiddlewares = append(g.scriptMiddlewares, middlewares...)
+}
+
+func (g *Gubot) UseCommand(middlewares ...CommandMiddleware) {
+	g.commandMiddlewares = append(g.commandMiddlewares, middlewares...)
+}
+
+func (g *Gubot) RegisterSlashCommand(slashCommand SlashCommand) error {
+	defer g.mutexSlashCommand.Unlock()
+	g.mutexSlashCommand.Lock()
+	err := g.checkSlashCommand(slashCommand)
+	if err != nil {
+		return err
+	}
+	if g.findSlashCommandIndex(slashCommand) != -1 {
+		return errors.New("slashCommand '%s' already registered")
+	}
+	*g.slashCommands = append(*g.slashCommands, slashCommand)
+	log.Debugf("%s registered.", slashCommand)
+	return nil
+}
+
+func (g *Gubot) RegisterSlashCommands(slashCommands []SlashCommand) error {
+	for _, cmd := range slashCommands {
+		err := g.RegisterSlashCommand(cmd)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (g *Gubot) UnregisterSlashCommand(slashCommand SlashCommand) error {
+	defer g.mutexSlashCommand.Unlock()
+	g.mutexSlashCommand.Lock()
+	err := g.checkSlashCommand(slashCommand)
+	if err != nil {
+		return err
+	}
+	i := g.findSlashCommandIndex(slashCommand)
+	if i == -1 {
+		return nil
+	}
+	cmds := *g.slashCommands
+	cmds = append(cmds[:i], cmds[i+1:]...)
+	*g.slashCommands = cmds
+	log.Debugf("%s unregistered.", slashCommand)
+	return nil
+}
+
+func (g *Gubot) UnregisterSlashCommands(slashCommands []SlashCommand) error {
+	for _, cmd := range slashCommands {
+		err := g.UnregisterSlashCommand(cmd)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (g *Gubot) UpdateSlashCommand(slashCommand SlashCommand) error {
+	defer g.mutexScript.Unlock()
+	g.mutexScript.Lock()
+	err := g.checkSlashCommand(slashCommand)
+	if err != nil {
+		return err
+	}
+	i := g.findSlashCommandIndex(slashCommand)
+	if i == -1 {
+		return nil
+	}
+	cmds := *g.slashCommands
+	cmds[i] = slashCommand
+	*g.slashCommands = cmds
+	log.Debugf("%s updated.", slashCommand)
+	return nil
+}
+
+func (g *Gubot) UpdateSlashCommands(slashCommands []SlashCommand) error {
+	for _, cmd := range slashCommands {
+		err := g.UpdateSlashCommand(cmd)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *Gubot) RegisterScript(script Script) error {
-	defer g.mutex.Unlock()
-	g.mutex.Lock()
+	defer g.mutexScript.Unlock()
+	g.mutexScript.Lock()
 	err := g.checkScript(script)
 	if err != nil {
 		return err
@@ -219,6 +319,32 @@ func (g *Gubot) RegisterScript(script Script) error {
 	return nil
 }
 
+func (g *Gubot) DispatchCommand(ident SlashCommandToken, envelop Envelop) (interface{}, error) {
+	var adapter SlashCommandAdapter
+	for _, adp := range g.adapters {
+		if adp.Name() != ident.AdapterName {
+			continue
+		}
+		if _, ok := adp.(SlashCommandAdapter); ok {
+			adapter = adp.(SlashCommandAdapter)
+		}
+	}
+	if adapter == nil {
+		return nil, fmt.Errorf("No adapter found for command %s", ident.CommandName)
+	}
+	for _, cmd := range *g.slashCommands {
+		if cmd.Trigger != ident.CommandName {
+			continue
+		}
+		result, err := g.generateCommandFunction(cmd, cmd.Function)(envelop)
+		if err != nil {
+			return nil, err
+		}
+		return adapter.Format(result)
+	}
+	return nil, fmt.Errorf("No function found for command %s", ident.CommandName)
+}
+
 func (g *Gubot) RegisterScripts(scripts []Script) error {
 	for _, script := range scripts {
 		err := g.RegisterScript(script)
@@ -230,8 +356,8 @@ func (g *Gubot) RegisterScripts(scripts []Script) error {
 }
 
 func (g *Gubot) UnregisterScript(script Script) error {
-	defer g.mutex.Unlock()
-	g.mutex.Lock()
+	defer g.mutexScript.Unlock()
+	g.mutexScript.Lock()
 	err := g.checkScript(script)
 	if err != nil {
 		return err
@@ -258,8 +384,8 @@ func (g *Gubot) UnregisterScripts(scripts []Script) error {
 }
 
 func (g *Gubot) UpdateScript(script Script) error {
-	defer g.mutex.Unlock()
-	g.mutex.Lock()
+	defer g.mutexScript.Unlock()
+	g.mutexScript.Lock()
 	err := g.checkScript(script)
 	if err != nil {
 		return err
@@ -298,6 +424,23 @@ func (g *Gubot) findScriptIndex(findScript Script) int {
 		if script.Name == findScript.Name &&
 			script.Matcher == findScript.Matcher &&
 			script.Type == findScript.Type {
+			return index
+		}
+	}
+	return -1
+}
+
+func (g Gubot) checkSlashCommand(slashCommand SlashCommand) error {
+	if slashCommand.Function == nil || slashCommand.Title == "" || slashCommand.Trigger == "" {
+		return errors.New("Slash command " + slashCommand.Title + " can't have function, title or trigger_word empty.")
+	}
+	return nil
+}
+
+func (g *Gubot) findSlashCommandIndex(slashCommand SlashCommand) int {
+	for index, cmd := range *g.slashCommands {
+		if cmd.Title == slashCommand.Title &&
+			cmd.Trigger == slashCommand.Trigger {
 			return index
 		}
 	}
@@ -436,6 +579,7 @@ func (g *Gubot) LoadStore() error {
 	}
 	store.AutoMigrate(&User{})
 	store.AutoMigrate(&RemoteScript{})
+	store.AutoMigrate(&SlashCommandToken{})
 	var rmtScripts []RemoteScript
 	store.Find(&rmtScripts)
 	for _, rmtScript := range rmtScripts {
@@ -470,6 +614,8 @@ func (g *Gubot) loadHost() {
 func (g Gubot) InitDefaultRoute() {
 	g.router.Handle("/", g.ApiAuthMatcher()(http.HandlerFunc(g.incoming))).Methods("POST")
 	g.router.Handle("/", http.HandlerFunc(g.showScripts)).Methods("GET")
+
+	g.router.Handle("/slash-command", http.HandlerFunc(g.slashCommand)).Methods("POST", "GET")
 
 	mux.NewRouter()
 	apiRouter := g.router.PathPrefix("/api").Subrouter()
@@ -521,9 +667,9 @@ func (g Gubot) IsSecured(w http.ResponseWriter, req *http.Request) bool {
 
 func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 	toSends := make([]string, 0)
-	g.mutex.Lock()
+	g.mutexScript.Lock()
 	scripts := *g.scripts
-	g.mutex.Unlock()
+	g.mutexScript.Unlock()
 	for _, script := range scripts.ListFromType(typeScript) {
 		if script.TriggerOnMention && envelop.NotMentioned {
 			continue
@@ -533,7 +679,7 @@ func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 			continue
 		}
 		log.Debug("%s respond on envelop=%v", script.String(), envelop)
-		function := g.generateFunction(script, script.Function)
+		function := g.generateScriptFunction(script, script.Function)
 		messages, err := function(envelop, allSubMatch(script.Matcher, message))
 		if err != nil {
 			log.Error(fmt.Sprintf("Error on script '%s': %s", script.Name, err.Error()))
@@ -544,10 +690,18 @@ func (g Gubot) getMessages(envelop Envelop, typeScript TypeScript) []string {
 	return toSends
 }
 
-func (g Gubot) generateFunction(script Script, handler EnvelopHandler) EnvelopHandler {
-	for i := len(g.middlewares) - 1; i >= 0; i-- {
-		middleware := g.middlewares[i]
+func (g Gubot) generateScriptFunction(script Script, handler EnvelopHandler) EnvelopHandler {
+	for i := len(g.scriptMiddlewares) - 1; i >= 0; i-- {
+		middleware := g.scriptMiddlewares[i]
 		handler = middleware(script, handler)
+	}
+	return handler
+}
+
+func (g Gubot) generateCommandFunction(command SlashCommand, handler CommandHandler) CommandHandler {
+	for i := len(g.commandMiddlewares) - 1; i >= 0; i-- {
+		middleware := g.commandMiddlewares[i]
+		handler = middleware(command, handler)
 	}
 	return handler
 }
@@ -594,9 +748,9 @@ func (g *Gubot) InitializeHelp() {
 		Matcher:     "(?i)^help$",
 		Function: func(envelop Envelop, subMatch [][]string) ([]string, error) {
 			list := "Available scripts: \n"
-			g.mutex.Lock()
+			g.mutexScript.Lock()
 			scripts := *g.scripts
-			g.mutex.Unlock()
+			g.mutexScript.Unlock()
 			for _, script := range scripts {
 				if script.Name == REMOTE_SCRIPTS_NAME {
 					continue
@@ -624,6 +778,38 @@ func (g *Gubot) InitializeHelp() {
 		TriggerOnMention: true,
 		Type:             Tsend,
 	})
+}
+
+func (g Gubot) SlashCommandUrl() string {
+	return g.Host() + "/slash-command"
+}
+
+func (g Gubot) IconUrl() string {
+	return g.Host() + icon_route
+}
+
+func (g Gubot) initSlashCommand() error {
+	var result error
+	for _, adp := range g.adapters {
+		if _, ok := adp.(SlashCommandAdapter); !ok {
+			continue
+		}
+		for _, cmd := range *g.slashCommands {
+			slashTokens, err := adp.(SlashCommandAdapter).Register(cmd)
+			if err != nil {
+				result = multierror.Append(result, err)
+			}
+			for _, slashToken := range slashTokens {
+				slashToken.AdapterName = adp.Name()
+				err = g.store.Create(slashToken).Error
+				if err != nil {
+					result = multierror.Append(result, err)
+					continue
+				}
+			}
+		}
+	}
+	return result
 }
 
 func (g *Gubot) Start(addr string) error {
@@ -662,6 +848,10 @@ func (g *Gubot) Start(addr string) error {
 	g.runAdapters()
 	g.InitDefaultRoute()
 	g.InitializeHelp()
+	err = g.initSlashCommand()
+	if err != nil {
+		log.Error(err)
+	}
 	g.Emit(GubotEvent{
 		Name: EVENT_ROBOT_INITIALIZED,
 	})

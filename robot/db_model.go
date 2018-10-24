@@ -26,3 +26,9 @@ func (r RemoteScript) ToScript() Script {
 		Type:             TypeScript(r.Type),
 	}
 }
+
+type SlashCommandToken struct {
+	ID          string `gorm:"primary_key"`
+	CommandName string
+	AdapterName string
+}

@@ -8,9 +8,18 @@ const (
 	Tdirect  TypeScript = "direct"
 )
 
-type Middleware func(script Script, next EnvelopHandler) EnvelopHandler
+type ScriptMiddleware func(script Script, next EnvelopHandler) EnvelopHandler
+
+type CommandMiddleware func(command SlashCommand, next CommandHandler) CommandHandler
+
+type Middleware interface {
+	ScriptMiddleware(script Script, next EnvelopHandler) EnvelopHandler
+	CommandMiddleware(command SlashCommand, next CommandHandler) CommandHandler
+}
 
 type EnvelopHandler func(Envelop, [][]string) ([]string, error)
+
+type CommandHandler func(Envelop) (string, error)
 
 type Script struct {
 	Name             string                   `json:"name" gorm:"primary_key"`
@@ -40,4 +49,15 @@ func (s Scripts) ListFromType(typeScript TypeScript) Scripts {
 
 func (s Script) String() string {
 	return fmt.Sprintf("Script '%s' with matcher '%s' and type '%s'", s.Name, s.Matcher, s.Type)
+}
+
+type SlashCommand struct {
+	Title       string         `json:"title" gorm:"primary_key"`
+	Trigger     string         `json:"trigger_word"`
+	Description string         `json:"description"`
+	Function    CommandHandler `json:"-" gorm:"-"`
+}
+
+func (s SlashCommand) String() string {
+	return fmt.Sprintf("Slash command '%s' with trigger word '%s' and type '%s'", s.Title, s.Trigger)
 }

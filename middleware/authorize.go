@@ -17,7 +17,7 @@ type AuthorizeConfig struct {
 
 func (g AuthorizeConfig) GetAccessControl(scriptName string) AccessControl {
 	for _, ac := range g.AccessControl {
-		if ac.ScriptName == scriptName {
+		if ac.Name == scriptName {
 			return ac
 		}
 	}
@@ -50,9 +50,9 @@ func (g Group) HasAccess(currentUser string) bool {
 }
 
 type AccessControl struct {
-	ScriptName string `cloud:"script_name"`
-	Users      []string
-	Groups     []string
+	Name   string `cloud:"name"`
+	Users  []string
+	Groups []string
 }
 
 func (g AccessControl) HasAccess(currentUser string, groups Groups) bool {
@@ -73,16 +73,32 @@ func (g AccessControl) HasAccess(currentUser string, groups Groups) bool {
 	return false
 }
 
-func AuthorizeMiddleware(script robot.Script, next robot.EnvelopHandler) robot.EnvelopHandler {
+type AuthorizeMiddleware struct{}
+
+func (AuthorizeMiddleware) ScriptMiddleware(script robot.Script, next robot.EnvelopHandler) robot.EnvelopHandler {
 	return func(envelop robot.Envelop, submatch [][]string) ([]string, error) {
 		ac := authorizeConfig.GetAccessControl(script.Name)
 		groups := authorizeConfig.Groups
-		if ac.ScriptName == "" {
+		if ac.Name == "" {
 			return next(envelop, submatch)
 		}
 		if ac.HasAccess(envelop.User.Name, groups) || ac.HasAccess(envelop.User.Id, groups) {
 			return next(envelop, submatch)
 		}
 		return []string{}, nil
+	}
+}
+
+func (AuthorizeMiddleware) CommandMiddleware(command robot.SlashCommand, next robot.CommandHandler) robot.CommandHandler {
+	return func(envelop robot.Envelop) (string, error) {
+		ac := authorizeConfig.GetAccessControl(command.Trigger)
+		groups := authorizeConfig.Groups
+		if ac.Name == "" {
+			return next(envelop)
+		}
+		if ac.HasAccess(envelop.User.Name, groups) || ac.HasAccess(envelop.User.Id, groups) {
+			return next(envelop)
+		}
+		return "", nil
 	}
 }

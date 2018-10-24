@@ -42,6 +42,12 @@ func RegisterAdapter(adp Adapter) {
 func Use(middlewares ...Middleware) {
 	robot.Use(middlewares...)
 }
+func UseScript(middlewares ...ScriptMiddleware) {
+	robot.UseScript(middlewares...)
+}
+func UseCommand(middlewares ...CommandMiddleware) {
+	robot.UseCommand(middlewares...)
+}
 func GetConfig(config interface{}) error {
 	return robot.GetConfig(config)
 }
@@ -69,6 +75,38 @@ func InitDefaultRoute() {
 func ApiAuthMatcher() func(http.Handler) http.Handler {
 	return robot.ApiAuthMatcher()
 }
+
+func SlashCommandUrl() string {
+	return robot.SlashCommandUrl()
+}
+
+func IconUrl() string {
+	return robot.IconUrl()
+}
+
+func DispatchCommand(ident SlashCommandToken, envelop Envelop) (interface{}, error) {
+	return robot.DispatchCommand(ident, envelop)
+}
+
+func RegisterSlashCommand(slashCommand SlashCommand) error {
+	return robot.RegisterSlashCommand(slashCommand)
+}
+func RegisterSlashCommands(slashCommand []SlashCommand) error {
+	return robot.RegisterSlashCommands(slashCommand)
+}
+func UnregisterSlashCommand(script SlashCommand) error {
+	return robot.UnregisterSlashCommand(script)
+}
+func UnregisterSlashCommands(slashCommand []SlashCommand) error {
+	return robot.UnregisterSlashCommands(slashCommand)
+}
+func UpdateSlashCommand(script SlashCommand) error {
+	return robot.UpdateSlashCommand(script)
+}
+func UpdateSlashCommands(slashCommand []SlashCommand) error {
+	return robot.UpdateSlashCommands(slashCommand)
+}
+
 func RegisterScript(script Script) error {
 	return robot.RegisterScript(script)
 }

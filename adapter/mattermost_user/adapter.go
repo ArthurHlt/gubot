@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/ArthurHlt/gubot/robot"
 	"github.com/gorilla/websocket"
+	"github.com/hashicorp/go-multierror"
 	"github.com/mattermost/mattermost-server/model"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -426,4 +427,64 @@ func (a MattermostUserAdapter) Name() string {
 
 func (a MattermostUserAdapter) Config() interface{} {
 	return MattermostUserConfig{}
+}
+
+func (a MattermostUserAdapter) Format(message string) (interface{}, error) {
+	if message == "" {
+		return nil, nil
+	}
+	return map[string]string{"text": message}, nil
+}
+
+func (a MattermostUserAdapter) Register(slashCommand robot.SlashCommand) ([]robot.SlashCommandToken, error) {
+	teams, resp := a.client.GetTeamMembersForUser(a.me.Id, "")
+	slashTokens := make([]robot.SlashCommandToken, 0)
+	if resp.Error != nil {
+		return slashTokens, resp.Error
+	}
+	var result error
+	for _, team := range teams {
+		slashToken, err := a.registerByTeam(team, slashCommand)
+		if err != nil {
+			result = multierror.Append(result, err)
+			continue
+		}
+		if slashToken.ID == "" {
+			continue
+		}
+		slashTokens = append(slashTokens, slashToken)
+	}
+	return slashTokens, result
+}
+
+func (a MattermostUserAdapter) registerByTeam(team *model.TeamMember, slashCommand robot.SlashCommand) (robot.SlashCommandToken, error) {
+	cmds, resp := a.client.ListCommands(team.TeamId, true)
+	if resp.Error != nil {
+		return robot.SlashCommandToken{}, resp.Error
+	}
+	for _, cmd := range cmds {
+		if cmd.Trigger == slashCommand.Trigger {
+			return robot.SlashCommandToken{}, nil
+		}
+	}
+
+	mattCmd, resp := a.client.CreateCommand(&model.Command{
+		TeamId:       team.TeamId,
+		URL:          robot.SlashCommandUrl(),
+		Method:       model.COMMAND_METHOD_POST,
+		Trigger:      slashCommand.Trigger,
+		AutoComplete: true,
+		Description:  slashCommand.Description,
+		DisplayName:  a.me.Username,
+		IconURL:      robot.IconUrl(),
+		Username:     a.me.Username,
+	})
+	if resp.Error != nil {
+		return robot.SlashCommandToken{}, resp.Error
+	}
+	return robot.SlashCommandToken{
+		AdapterName: a.Name(),
+		CommandName: slashCommand.Trigger,
+		ID:          mattCmd.Token,
+	}, nil
 }
