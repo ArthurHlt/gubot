@@ -13,14 +13,38 @@ import (
 const CONFIG_FILENAME = "config_gubot.yml"
 
 type GubotConfig struct {
-	Tokens       []string               `yaml:"tokens"`
-	LogLevel     string                 `yaml:"log_level"`
-	Name         string                 `yaml:"name"`
-	Host         string                 `yaml:"host"`
-	SkipInsecure bool                   `yaml:"skip_insecure"`
-	Services     []ServiceLocal         `yaml:"services"`
-	Config       map[string]interface{} `yaml:"config" cloud:"-"`
+	Tokens         []string               `yaml:"tokens"`
+	LogLevel       string                 `yaml:"log_level"`
+	Name           string                 `yaml:"name"`
+	Host           string                 `yaml:"host"`
+	SkipInsecure   bool                   `yaml:"skip_insecure"`
+	ProgramScripts []ProgramScript        `yaml:"program_scripts"`
+	Services       []ServiceLocal         `yaml:"services"`
+	Config         map[string]interface{} `yaml:"config" cloud:"-"`
 }
+
+type ProgramScript struct {
+	Path             string   `yaml:"path"`
+	Args             []string `yaml:"args"`
+	Type             string   `yaml:"type"`
+	Name             string   `yaml:"name"`
+	Description      string   `yaml:"description"`
+	Example          string   `yaml:"example"`
+	Matcher          string   `yaml:"matcher"`
+	TriggerOnMention bool     `yaml:"trigger_on_mention"`
+}
+
+func (p ProgramScript) ToScript() Script {
+	return Script{
+		Name:             p.Name,
+		Description:      p.Description,
+		Example:          p.Example,
+		Matcher:          p.Matcher,
+		TriggerOnMention: p.TriggerOnMention,
+		Type:             TypeScript(p.Type),
+	}
+}
+
 type ConfFileCloudEnv struct {
 	id          string
 	credentials map[string]interface{}
@@ -101,6 +125,7 @@ func (c *ConfFileCloudEnv) Load() error {
 	conf.Config["host"] = conf.Host
 	conf.Config["tokens"] = conf.Tokens
 	conf.Config["log_level"] = conf.LogLevel
+	conf.Config["program_scripts"] = conf.ProgramScripts
 
 	confMap := conf.Config
 	for key, value := range confMap {

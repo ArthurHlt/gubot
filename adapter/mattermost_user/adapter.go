@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ArthurHlt/gubot/adapter"
 	"github.com/ArthurHlt/gubot/robot"
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/go-multierror"
@@ -21,6 +22,8 @@ import (
 func init() {
 	robot.RegisterAdapter(NewMattermostUserAdapter())
 }
+
+const messageSizeMax = 4000
 
 type PostData struct {
 	ID            string    `json:"id"`
@@ -81,14 +84,7 @@ func (a MattermostUserAdapter) Send(envelop robot.Envelop, message string) error
 			return err
 		}
 	}
-	_, resp := a.client.CreatePost(&model.Post{
-		ChannelId: channelId,
-		Message:   message,
-	})
-	if resp.Error != nil {
-		return resp.Error
-	}
-	return nil
+	return a.createPost(channelId, message)
 }
 
 func (a MattermostUserAdapter) SendDirect(envelop robot.Envelop, message string) error {
@@ -96,12 +92,20 @@ func (a MattermostUserAdapter) SendDirect(envelop robot.Envelop, message string)
 	if resp.Error != nil {
 		return resp.Error
 	}
-	_, resp = a.client.CreatePost(&model.Post{
-		ChannelId: channel.Id,
-		Message:   message,
-	})
-	if resp.Error != nil {
-		return resp.Error
+	return a.createPost(channel.Id, message)
+}
+
+func (a MattermostUserAdapter) createPost(channelId, message string) error {
+	messages := adapter.TruncateMessage(message, messageSizeMax)
+
+	for _, msg := range messages {
+		_, resp := a.client.CreatePost(&model.Post{
+			ChannelId: channelId,
+			Message:   msg,
+		})
+		if resp.Error != nil {
+			return resp.Error
+		}
 	}
 	return nil
 }

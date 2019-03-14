@@ -70,7 +70,7 @@ func (a ShellAdapter) Run(config interface{}, gubot *robot.Gubot) error {
 				continue
 			}
 			message, _ := gubot.DispatchCommand(slashToken, envelop)
-			if message.(string) == "" {
+			if message == nil || message.(string) == "" {
 				continue
 			}
 			fmt.Print("Send> " + message.(string) + "\n")

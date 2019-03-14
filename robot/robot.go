@@ -332,17 +332,25 @@ func (g *Gubot) DispatchCommand(ident SlashCommandToken, envelop Envelop) (inter
 	if adapter == nil {
 		return nil, fmt.Errorf("No adapter found for command %s", ident.CommandName)
 	}
+	var finalCmd SlashCommand
 	for _, cmd := range *g.slashCommands {
-		if cmd.Trigger != ident.CommandName {
-			continue
+		if cmd.Trigger == ident.CommandName {
+			finalCmd = cmd
+			break
 		}
-		result, err := g.generateCommandFunction(cmd, cmd.Function)(envelop)
-		if err != nil {
-			return nil, err
-		}
-		return adapter.Format(result)
 	}
-	return nil, fmt.Errorf("No function found for command %s", ident.CommandName)
+	if finalCmd.Function == nil {
+		return nil, fmt.Errorf("No function found for command %s", ident.CommandName)
+	}
+	result, err := g.generateCommandFunction(finalCmd, finalCmd.Function)(envelop)
+	if err != nil {
+		return nil, err
+	}
+	if result == "" {
+		return nil, nil
+	}
+	return adapter.Format(result)
+
 }
 
 func (g *Gubot) RegisterScripts(scripts []Script) error {
@@ -851,6 +859,10 @@ func (g *Gubot) Start(addr string) error {
 	err = g.initSlashCommand()
 	if err != nil {
 		log.Error(err)
+	}
+	err = g.registerProgramScripts(conf.ProgramScripts)
+	if err != nil {
+		return err
 	}
 	g.Emit(GubotEvent{
 		Name: EVENT_ROBOT_INITIALIZED,

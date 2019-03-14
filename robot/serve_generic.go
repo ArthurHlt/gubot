@@ -2,7 +2,7 @@ package robot
 
 import (
 	"encoding/json"
-	"github.com/jfrogdev/jfrog-cli-go/utils/cliutils/log"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"net/url"

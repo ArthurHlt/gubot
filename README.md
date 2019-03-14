@@ -14,6 +14,7 @@ It supports 3 different chat services by default:
 - [Slack](/adapter/slack/adapter.go)
 - [Shell](/adapter/shell/adapter.go) *(mainly for testing your scripts)*
 - [Mattermost websocket and API](/adapter/mattermost_user/adapter.go)
+- [IBM Text to speech watson](/adapter/tts_watson/adapter.go)
 
 ## Summary
 
@@ -32,6 +33,11 @@ It supports 3 different chat services by default:
   - [Use the store system](#use-the-store-system) 
 - [Create your own adapter](#create-your-own-adapter)
 - [Remote scripts](#remote-scripts)
+- [Slash commands](#slash-commands)
+- [Middlewares](#middlewares)
+  - [Use middleware](#use-middleware)
+  - [Authorization middleware](#authorization-middleware)
+- [Execute scripts on external program](#execute-scripts-on-external-program)
 - [API](#api)
   - [CRUD Remote scripts](#crud-remote-scripts)
     - [Create remote scripts](#create-remote-scripts)
@@ -365,7 +371,118 @@ curl -XPOST -H 'Authorization: atokenregisteredingubot' -H "Content-type: applic
 
 Now on your chat service, type `hello send my php` and you will receive `hello from php`.
 
-For more informations about api let's have look in the part just after.
+For more informations about api let's have look [here](#api).
+
+## Slash commands
+
+A slash command is a kind of script which trigger when adapter receive a slash command order, 
+this feature is mainly for [mattermost slash command](https://docs.mattermost.com/developer/slash-commands.html). 
+
+Adapter is responsible to register slash commands themself to the service they wrap.
+
+Only supported on adapters:
+- mattermost_user
+- shell
+
+Add a slash command:
+
+```go
+func init(){
+    robot.RegisterSlashCommand([]robot.Script{
+    		{
+    			Title: "echo",
+    			Trigger: "echo", // on mattermost it will be triggered by /echo command
+    			Function: func(envelop robot.Envelop) ([]string, error) {
+                    return []string{envelop.Message}, nil
+                },
+    		},
+    })
+}
+```
+
+## Middlewares
+
+Middleware can be set on slash command and/or script, they can perform check before sending message.
+
+See [/middleware/authorize.go](/middleware/authorize.go) to know how to write one.
+
+### Use middleware
+
+To use middleware simply add it with Use function:
+
+```go
+func main() {
+	robot.Use(&middleware.AuthorizeMiddleware{})
+}
+```
+
+### Authorization middleware
+
+Authorization middleware is the only provided middleware, it helps to add rbac on scripts and slash commands.
+
+This middleware is added by default.
+
+How to use in configuration:
+
+**Important:** User is the username given by adapter.
+
+```yaml
+config:
+  auth_groups: # define groups
+    - name: my-group
+      users: [ahalet,fgarcia]
+  auth_access_control:
+    # we define that only user `user-authorize` and group `my-group` is authorize to call script `my-script-name`
+    - name: my-script-name
+      users: [user-authorize]
+      groups: [my-group]
+```
+
+## Execute scripts on external program
+
+You can set an external program to execute script like remote script, it permits you to use different language locally.
+
+Define in configuration file:
+
+```yaml
+program_scripts:
+  - name: my-script-name
+    matcher: "external-program"
+    type: send
+    path: "/path/to/my/program"
+    args:
+      - "--my-arg"
+```
+
+Your program will receive in `STDIN` envelop in this format:
+
+```json
+{
+	"message": "",
+	"channel_name": "",
+	"channel_id": "",
+	"icon_url": "",
+	"not_mentioned": false,
+	"user": {
+		"name": "",
+		"id": "",
+		"channel_name": "",
+		"channel_id": "",
+		"properties": null
+	},
+	"properties": null,
+	"sub_match": null
+}
+```
+
+Program must respond list of possible message in json format on `STDOUT`, example:
+
+```php
+<?php
+$json = file_get_contents('php://stdin');
+$obj = json_decode($json);
+file_put_contents('php://stdout', json_encode(["hello from my program"]));
+```
 
 ## API
 

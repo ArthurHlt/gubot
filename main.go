@@ -1,12 +1,14 @@
 package main
 
 import (
+	"github.com/ArthurHlt/gubot/middleware"
 	"github.com/ArthurHlt/gubot/robot"
 
 	// adapters
 	_ "github.com/ArthurHlt/gubot/adapter/shell"
 	_ "github.com/ArthurHlt/gubot/adapter/slack"
-	//_ "github.com/ArthurHlt/gubot/adapter/mattermost_user"
+	// _ "github.com/ArthurHlt/gubot/adapter/tts_watson"
+	// _ "github.com/ArthurHlt/gubot/adapter/mattermost_user"
 
 	// scripts
 	_ "github.com/ArthurHlt/gubot/scripts"
@@ -21,5 +23,6 @@ func main() {
 	if port != "" {
 		addr = ":" + port
 	}
+	robot.Use(&middleware.AuthorizeMiddleware{})
 	log.Fatal(robot.Start(addr))
 }
