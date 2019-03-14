@@ -10,11 +10,14 @@ import (
 	"github.com/faiface/beep/vorbis"
 	"github.com/writeas/go-strip-markdown"
 	"net/http"
+	"sync"
 	"time"
 )
 
 func init() {
-	robot.RegisterAdapter(&TTSWatsonAdapter{})
+	robot.RegisterAdapter(&TTSWatsonAdapter{
+		mutex: &sync.Mutex{},
+	})
 }
 
 type TTSWatsonConfig struct {
@@ -27,6 +30,7 @@ type TTSWatsonConfig struct {
 type TTSWatsonAdapter struct {
 	config *TTSWatsonConfig
 	gubot  *robot.Gubot
+	mutex  *sync.Mutex
 }
 
 func (TTSWatsonAdapter) Name() string {
@@ -38,6 +42,8 @@ type TTSRequest struct {
 }
 
 func (a TTSWatsonAdapter) Send(_ robot.Envelop, message string) error {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
 	jsonMessage, err := json.Marshal(TTSRequest{
 		Text: stripmd.Strip(message),
 	})
