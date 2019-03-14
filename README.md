@@ -432,10 +432,14 @@ config:
     - name: my-group
       users: [ahalet,fgarcia]
   auth_access_control:
-    # we define that only user `user-authorize` and group `my-group` is authorize to call script `my-script-name`
+    # we define that only user `user-authorize` 
+    # or members of group `my-group` 
+    # or message incoming from channel `my-channel`
+    # is authorize to call script `my-script-name`
     - name: my-script-name
       users: [user-authorize]
       groups: [my-group]
+      channels: [my-channel]
 ```
 
 ## Execute scripts on external program

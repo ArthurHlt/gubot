@@ -40,9 +40,9 @@ type Group struct {
 	Users []string
 }
 
-func (g Group) HasAccess(currentUser string) bool {
+func (g Group) HasAccess(userEnvelop robot.UserEnvelop) bool {
 	for _, user := range g.Users {
-		if user == currentUser {
+		if user == userEnvelop.Name || user == userEnvelop.Id {
 			return true
 		}
 	}
@@ -50,14 +50,20 @@ func (g Group) HasAccess(currentUser string) bool {
 }
 
 type AccessControl struct {
-	Name   string `cloud:"name"`
-	Users  []string
-	Groups []string
+	Name     string `cloud:"name"`
+	Users    []string
+	Groups   []string
+	Channels []string
 }
 
-func (g AccessControl) HasAccess(currentUser string, groups Groups) bool {
+func (g AccessControl) HasAccess(userEnvelop robot.UserEnvelop, groups Groups, currentChanName, currentChanId string) bool {
+	for _, channel := range g.Channels {
+		if channel == currentChanName || channel == currentChanId {
+			return true
+		}
+	}
 	for _, user := range g.Users {
-		if user == currentUser {
+		if user == userEnvelop.Id || user == userEnvelop.Name {
 			return true
 		}
 	}
@@ -66,7 +72,7 @@ func (g AccessControl) HasAccess(currentUser string, groups Groups) bool {
 		if group.Name == "" {
 			continue
 		}
-		if group.HasAccess(currentUser) {
+		if group.HasAccess(userEnvelop) {
 			return true
 		}
 	}
@@ -82,7 +88,7 @@ func (AuthorizeMiddleware) ScriptMiddleware(script robot.Script, next robot.Enve
 		if ac.Name == "" {
 			return next(envelop, submatch)
 		}
-		if ac.HasAccess(envelop.User.Name, groups) || ac.HasAccess(envelop.User.Id, groups) {
+		if ac.HasAccess(envelop.User, groups, envelop.ChannelName, envelop.ChannelId) {
 			return next(envelop, submatch)
 		}
 		return []string{}, nil
@@ -96,7 +102,7 @@ func (AuthorizeMiddleware) CommandMiddleware(command robot.SlashCommand, next ro
 		if ac.Name == "" {
 			return next(envelop)
 		}
-		if ac.HasAccess(envelop.User.Name, groups) || ac.HasAccess(envelop.User.Id, groups) {
+		if ac.HasAccess(envelop.User, groups, envelop.ChannelName, envelop.ChannelId) {
 			return next(envelop)
 		}
 		return "", nil
