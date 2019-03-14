@@ -38,6 +38,19 @@ func (g *Gubot) incoming(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (g *Gubot) incomingMessage(w http.ResponseWriter, req *http.Request) {
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	g.Receive(Envelop{
+		Message: string(data),
+	})
+	w.WriteHeader(http.StatusOK)
+}
+
 func (g *Gubot) slashCommand(w http.ResponseWriter, req *http.Request) {
 	params := req.URL.Query()
 	for keyParam, param := range req.Form {

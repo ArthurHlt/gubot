@@ -621,6 +621,7 @@ func (g *Gubot) loadHost() {
 
 func (g Gubot) InitDefaultRoute() {
 	g.router.Handle("/", g.ApiAuthMatcher()(http.HandlerFunc(g.incoming))).Methods("POST")
+	g.router.Handle("/message", g.ApiAuthMatcher()(http.HandlerFunc(g.incomingMessage))).Methods("POST")
 	g.router.Handle("/", http.HandlerFunc(g.showScripts)).Methods("GET")
 
 	g.router.Handle("/slash-command", http.HandlerFunc(g.slashCommand)).Methods("POST", "GET")
