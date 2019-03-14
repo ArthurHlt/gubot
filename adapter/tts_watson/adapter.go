@@ -73,7 +73,7 @@ func (a TTSWatsonAdapter) Send(_ robot.Envelop, message string) error {
 
 	speedPercent := a.config.TtsWatsonSpeedPercent
 	if speedPercent <= 0 {
-		speedPercent = 100
+		speedPercent = 50
 	}
 	speed := beep.SampleRate(float64(format.SampleRate) * float64(speedPercent) / float64(100))
 
