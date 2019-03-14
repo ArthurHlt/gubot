@@ -80,20 +80,20 @@ func (a ShellAdapter) Run(config interface{}, gubot *robot.Gubot) error {
 	return nil
 }
 
-//func (a ShellAdapter) eventCmd(text string) robot.EventAction {
-//	text = robot.SanitizeDefault(text)
-//	switch text {
-//	case "/enter":
-//		return robot.EVENT_ROBOT_CHANNEL_ENTER
-//	case "/leave":
-//		return robot.EVENT_ROBOT_CHANNEL_LEAVE
-//	case "/online":
-//		return robot.EVENT_ROBOT_USER_ONLINE
-//	case "/offline":
-//		return robot.EVENT_ROBOT_USER_OFFLINE
-//	}
-//	return ""
-//}
+// func (a ShellAdapter) eventCmd(text string) robot.EventAction {
+// 	text = robot.SanitizeDefault(text)
+// 	switch text {
+// 	case "/enter":
+// 		return robot.EVENT_ROBOT_CHANNEL_ENTER
+// 	case "/leave":
+// 		return robot.EVENT_ROBOT_CHANNEL_LEAVE
+// 	case "/online":
+// 		return robot.EVENT_ROBOT_USER_ONLINE
+// 	case "/offline":
+// 		return robot.EVENT_ROBOT_USER_OFFLINE
+// 	}
+// 	return ""
+// }
 
 func (a ShellAdapter) Name() string {
 	return "shell"
