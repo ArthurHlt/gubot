@@ -72,8 +72,7 @@ func (a *TTSWatsonAdapter) Run(config interface{}, r *robot.Gubot) error {
 	done := make(chan bool)
 	go func() {
 		for message := range a.messageChan {
-			message = stripmd.Strip(message)
-			resp, err := a.messageAudio(message)
+			resp, err := a.messageAudio(stripmd.Strip(message))
 			if err != nil {
 				entry.Error(err)
 				continue
@@ -116,12 +115,13 @@ func (a TTSWatsonAdapter) messageAudio(message string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer audWatson.Close()
 	_, err = io.Copy(f, audWatson)
 	if err != nil {
+		audWatson.Close()
 		f.Close()
 		return nil, err
 	}
+	audWatson.Close()
 	f.Close()
 
 	return os.Open(audFile)
@@ -173,6 +173,7 @@ func (a TTSWatsonAdapter) playSound(readCloser io.ReadCloser, cb beep.Streamer) 
 	}
 
 	speaker.Play(beep.Seq(streamer, cb))
+	return nil
 }
 
 func (TTSWatsonAdapter) Config() interface{} {
