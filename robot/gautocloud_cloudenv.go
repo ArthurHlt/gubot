@@ -24,25 +24,8 @@ type GubotConfig struct {
 }
 
 type ProgramScript struct {
-	Path             string   `yaml:"path"`
-	Args             []string `yaml:"args"`
-	Type             string   `yaml:"type"`
-	Name             string   `yaml:"name"`
-	Description      string   `yaml:"description"`
-	Example          string   `yaml:"example"`
-	Matcher          string   `yaml:"matcher"`
-	TriggerOnMention bool     `yaml:"trigger_on_mention"`
-}
-
-func (p ProgramScript) ToScript() Script {
-	return Script{
-		Name:             p.Name,
-		Description:      p.Description,
-		Example:          p.Example,
-		Matcher:          p.Matcher,
-		TriggerOnMention: p.TriggerOnMention,
-		Type:             TypeScript(p.Type),
-	}
+	Path string   `yaml:"path"`
+	Args []string `yaml:"args"`
 }
 
 type ConfFileCloudEnv struct {

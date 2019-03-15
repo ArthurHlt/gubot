@@ -446,14 +446,11 @@ config:
 
 You can set an external program to execute script like remote script, it permits you to use different language locally.
 
-Define in configuration file:
+Define in configuration file your program:
 
 ```yaml
 program_scripts:
-  - name: my-script-name
-    matcher: "external-program"
-    type: send
-    path: "/path/to/my/program"
+  - path: "/path/to/my/program"
     args:
       - "--my-arg"
 ```
@@ -462,24 +459,47 @@ Your program will receive in `STDIN` envelop in this format:
 
 ```json
 {
-	"message": "",
-	"channel_name": "",
-	"channel_id": "",
-	"icon_url": "",
-	"not_mentioned": false,
-	"user": {
-		"name": "",
-		"id": "",
-		"channel_name": "",
-		"channel_id": "",
-		"properties": null
-	},
-	"properties": null,
-	"sub_match": null
+    // action can be register or receive
+    "action": "receive",
+    // data is empty if action is register
+    "data": {
+      "name": "", // script name
+      "message": "",
+      	"channel_name": "",
+      	"channel_id": "",
+      	"icon_url": "",
+      	"not_mentioned": false,
+      	"user": {
+      		"name": "",
+      		"id": "",
+      		"channel_name": "",
+      		"channel_id": "",
+      		"properties": null
+      	},
+      	"properties": null,
+      	"sub_match": null
+    }
 }
 ```
 
-Program must respond list of possible message in json format on `STDOUT`, example:
+Gubot will first receive an action of type `register`, and response expect to be a list of scripts 
+definitions in json format on `STDOUT` that gubot will register as script linked to your program:
+
+```json
+[
+    {
+      "name": "my-script-name",
+      "type": "send", // or respond or direct
+      "description": "",
+      "example": "",
+      "matcher": ".*",
+      "trigger_on_mention": false
+    }
+]
+```
+
+When gubot receive a valid message for your script your program will receive an action of type `receive` with envelop 
+as data, program must respond on `STDOUT` list of possible messages in json format, example:
 
 ```php
 <?php
