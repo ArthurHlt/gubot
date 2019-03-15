@@ -68,7 +68,7 @@ func (a *TTSWatsonAdapter) Run(config interface{}, r *robot.Gubot) error {
 		a.config.TtsWatsonRate = 22050
 	}
 	a.gubot = r
-
+	speedPercent := a.config.TtsWatsonSpeedPercent
 	done := make(chan bool)
 	go func() {
 		for message := range a.messageChan {
@@ -77,15 +77,27 @@ func (a *TTSWatsonAdapter) Run(config interface{}, r *robot.Gubot) error {
 				entry.Error(err)
 				continue
 			}
-			err = a.playSound(resp, beep.Callback(func() {
-				resp.Close()
-				done <- true
-			}))
+			streamer, format, err := vorbis.Decode(resp)
 			if err != nil {
 				resp.Close()
 				entry.Error(err)
 				continue
 			}
+
+			speed := beep.SampleRate(float64(format.SampleRate) * float64(speedPercent) / float64(100))
+			err = speaker.Init(speed, format.SampleRate.N(time.Second))
+			if err != nil {
+				streamer.Close()
+				resp.Close()
+				entry.Error(err)
+				continue
+			}
+
+			speaker.Play(beep.Seq(streamer, beep.Callback(func() {
+				streamer.Close()
+				resp.Close()
+				done <- true
+			})))
 			<-done
 		}
 	}()
@@ -156,24 +168,6 @@ func (a TTSWatsonAdapter) messageAudioWatson(message string) (io.ReadCloser, err
 		return nil, err
 	}
 	return resp.Body, nil
-}
-
-func (a TTSWatsonAdapter) playSound(readCloser io.ReadCloser, cb beep.Streamer) error {
-	speedPercent := a.config.TtsWatsonSpeedPercent
-	streamer, format, err := vorbis.Decode(readCloser)
-	if err != nil {
-		return err
-	}
-	defer streamer.Close()
-
-	speed := beep.SampleRate(float64(format.SampleRate) * float64(speedPercent) / float64(100))
-	err = speaker.Init(speed, format.SampleRate.N(time.Second))
-	if err != nil {
-		return err
-	}
-
-	speaker.Play(beep.Seq(streamer, cb))
-	return nil
 }
 
 func (TTSWatsonAdapter) Config() interface{} {
