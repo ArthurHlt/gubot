@@ -7,7 +7,7 @@ import (
 	// adapters
 	_ "github.com/ArthurHlt/gubot/adapter/shell"
 	// _ "github.com/ArthurHlt/gubot/adapter/slack"
-	_ "github.com/ArthurHlt/gubot/adapter/tts_watson"
+	_ "github.com/ArthurHlt/gubot/adapter/tts"
 	// _ "github.com/ArthurHlt/gubot/adapter/mattermost_user"
 
 	// scripts
