@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/ArthurHlt/gubot/robot"
 	"io"
 	"net/http"
+
+	"github.com/ArthurHlt/gubot/robot"
 )
 
 type WatsonConfig struct {
@@ -42,7 +43,7 @@ func (a watsonProvider) MessageAudio(message string, config *TTSConfig) (io.Read
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth("apikey", watsonConfig.Url)
+	req.SetBasicAuth("apikey", watsonConfig.Token)
 	req.Header.Set("Content-type", "application/json")
 	req.Header.Set("accept", fmt.Sprintf("audio/ogg;codecs=vorbis;rate=%d", rate))
 	q := req.URL.Query()
