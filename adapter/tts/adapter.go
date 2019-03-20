@@ -24,10 +24,11 @@ func init() {
 }
 
 type TTSConfig struct {
-	TtsSpeedPercent int
-	TtsEnableCache  bool
-	TtsWatson       WatsonConfig
-	TtsVoicerss     VoicerssConfig
+	TtsSpeedPercent  int
+	TtsEnableCache   bool
+	TtsWatson        WatsonConfig
+	TtsVoicerss      VoicerssConfig
+	TtsStripMarkdown bool
 }
 
 type TTSAdapter struct {
@@ -41,7 +42,7 @@ func (TTSAdapter) Name() string {
 }
 
 func (a TTSAdapter) Send(_ robot.Envelop, message string) error {
-	a.messageChan <- stripmd.Strip(message)
+	a.messageChan <- message
 	return nil
 }
 
@@ -64,7 +65,10 @@ func (a *TTSAdapter) Run(config interface{}, r *robot.Gubot) error {
 	done := make(chan bool)
 	go func() {
 		for message := range a.messageChan {
-			resp, err := a.messageAudio(stripmd.Strip(message))
+			if a.config.TtsStripMarkdown {
+				message = stripmd.Strip(message)
+			}
+			resp, err := a.messageAudio(message)
 			if err != nil {
 				entry.Error(err)
 				continue

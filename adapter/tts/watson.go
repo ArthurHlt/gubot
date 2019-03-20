@@ -26,7 +26,10 @@ func (a watsonProvider) MessageAudio(message string, config *TTSConfig) (io.Read
 	if rate == 0 {
 		rate = 22050
 	}
-	jsonMessage, err := json.Marshal(struct {
+	buf := &bytes.Buffer{}
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	err := enc.Encode(struct {
 		Text string `json:"text"`
 	}{
 		Text: message,
@@ -38,7 +41,7 @@ func (a watsonProvider) MessageAudio(message string, config *TTSConfig) (io.Read
 	req, err := http.NewRequest(
 		"POST",
 		fmt.Sprintf("%s/v1/synthesize", watsonConfig.Url),
-		bytes.NewBuffer(jsonMessage),
+		buf,
 	)
 	if err != nil {
 		return nil, err
