@@ -5,18 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ArthurHlt/gubot/adapter"
-	"github.com/ArthurHlt/gubot/robot"
-	"github.com/gorilla/websocket"
-	"github.com/hashicorp/go-multierror"
-	"github.com/mattermost/mattermost-server/model"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ArthurHlt/gubot/adapter"
+	"github.com/ArthurHlt/gubot/robot"
+	"github.com/gorilla/websocket"
+	"github.com/hashicorp/go-multierror"
+	"github.com/mattermost/mattermost-server/model"
+	log "github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -161,7 +162,7 @@ func closeBody(r *http.Response) {
 }
 
 func (a MattermostUserAdapter) Reply(envelop robot.Envelop, message string) error {
-	return a.Send(envelop, "@"+envelop.User.Name+": "+message)
+	return a.Send(envelop, envelop.User.Name+": "+message)
 }
 
 func (a *MattermostUserAdapter) Run(config interface{}, gubot *robot.Gubot) error {
@@ -386,8 +387,8 @@ func (a MattermostUserAdapter) sendingEnvelop(event *model.WebSocketEvent, mattM
 	envelop.NotMentioned = !mentioned
 
 	mentionKeys := []string{
-		a.me.Nickname,
 		a.me.Username,
+		a.me.Nickname,
 		a.me.FirstName,
 	}
 	if rawMenKeys, ok := a.me.NotifyProps["mention_keys"]; ok {
